@@ -4,7 +4,7 @@
 // 必ず下の CACHE_NAME のバージョン番号を上げてください（例: 'synclimb-v1' -> 'synclimb-v2'）。
 // これを忘れると、Service Worker が古いキャッシュを返し続け、
 // 仲間のスマホにいつまでも新しい変更が反映されません。
-const CACHE_NAME = 'synclimb-v3';
+const CACHE_NAME = 'synclimb-v4';
 
 const APP_SHELL = [
   './',

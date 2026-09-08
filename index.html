@@ -280,6 +280,7 @@
     speed: 1,
     totalElapsed: 0,
     recording: false,
+    finishing: false, // 「保存して終了」が押され、最後まで自動再生して保存する処理中かどうか
   };
 
   let mediaRecorder = null;
@@ -507,9 +508,28 @@
     state.phase = 'record';
     state.pauseL = false; state.pauseR = false; state.pauseAll = false;
     state.finishedL = false; state.finishedR = false;
+    state.finishing = false;
     state.totalElapsed = 0;
     state.speed = 1;
     document.querySelectorAll('.speed-btn').forEach(b => b.classList.toggle('active', b.dataset.speed === '1'));
+
+    // 前回「保存して終了」を押して自動再生ロック状態になっていた場合に備え、
+    // 録画開始のたびに関連ボタンの有効・表示状態を初期化しておく
+    ['pauseLBtn', 'pauseRBtn', 'pauseAllBtn'].forEach((id) => {
+      const b = document.getElementById(id);
+      b.disabled = false;
+    });
+    document.getElementById('pauseLBtn').textContent = '左を一時停止';
+    document.getElementById('pauseLBtn').classList.remove('on');
+    document.getElementById('pauseRBtn').textContent = '右を一時停止';
+    document.getElementById('pauseRBtn').classList.remove('on');
+    document.getElementById('pauseAllBtn').textContent = '⏸ 全体を一時停止';
+    document.getElementById('pauseAllBtn').classList.remove('on');
+    document.querySelectorAll('#phase-record .speed-btn').forEach(b => b.disabled = false);
+    document.querySelectorAll('#phase-record [data-offset]').forEach(b => b.disabled = false);
+    const saveBtn = document.getElementById('saveEndBtn');
+    saveBtn.disabled = false;
+    saveBtn.textContent = '💾 保存して終了';
 
     try{
       const stream = canvas.captureStream(30);
@@ -606,7 +626,44 @@
     });
   });
 
-  document.getElementById('saveEndBtn').addEventListener('click', finishRecording);
+  document.getElementById('saveEndBtn').addEventListener('click', () => {
+    // 既に両方の動画が最後まで再生済みなら、そのまま通常通り保存する
+    if(state.finishedL && state.finishedR){
+      finishRecording();
+      return;
+    }
+
+    // 二重クリック防止
+    if(state.finishing) return;
+    state.finishing = true;
+
+    // 一時停止をすべて解除し、最後まで自動再生させる
+    state.pauseAll = false;
+    state.pauseL = false;
+    state.pauseR = false;
+
+    document.getElementById('pauseLBtn').classList.remove('on');
+    document.getElementById('pauseLBtn').textContent = '左を一時停止';
+    document.getElementById('pauseRBtn').classList.remove('on');
+    document.getElementById('pauseRBtn').textContent = '右を一時停止';
+    document.getElementById('pauseAllBtn').classList.remove('on');
+    document.getElementById('pauseAllBtn').textContent = '⏸ 全体を一時停止';
+    syncPlaybackState();
+
+    // 自動再生が終わるまで、途中で状態が変わる操作をロックする
+    // （破棄ボタンだけは、気が変わった場合のためにロックしない）
+    ['pauseLBtn', 'pauseRBtn', 'pauseAllBtn'].forEach((id) => {
+      document.getElementById(id).disabled = true;
+    });
+    document.querySelectorAll('#phase-record .speed-btn').forEach(b => b.disabled = true);
+    document.querySelectorAll('#phase-record [data-offset]').forEach(b => b.disabled = true);
+
+    const btn = document.getElementById('saveEndBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ 最後まで自動再生して保存中…';
+
+    showToast('残りを最後まで自動再生してから保存します。しばらくお待ちください。');
+  });
   document.getElementById('discardBtn').addEventListener('click', () => {
     if(confirm('録画中の内容を破棄して開始位置の調整に戻ります。よろしいですか？')){
       finishRecording(true);
