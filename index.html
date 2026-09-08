@@ -4,44 +4,53 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
   <meta name="description" content="左右2本の登攀動画を高精度に同期・検証し、比較動画を作成するプロ向けWebツール。">
-  <meta name="theme-color" content="#14171A">
-  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#FFFFFF">
+  <meta name="color-scheme" content="light">
   <meta name="format-detection" content="telephone=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>縦分割してムーブ比較検証動画作成ツール by 武庫</title>
 
   <style>
     /* =====================================================================
-       1. デザイントークン & カラーシステム
+       1. デザイントークン & 白基調カラーシステム
        ===================================================================== */
     :root {
-      --bg-base: #14171A;
-      --bg-surface: #1E2328;
-      --bg-surface-elevated: #262D34;
-      --border-subtle: #363E47;
-      --border-focus: #38BDF8;
+      /* ベース背景（清潔感のあるオフホワイト） */
+      --bg-base: #F8FAFC;
+      --bg-surface: #FFFFFF;
+      --bg-surface-elevated: #F1F5F9;
+      --border-subtle: #E2E8F0;
+      --border-strong: #CBD5E1;
 
-      --text-main: #F2F4F7;
-      --text-muted: #94A0B0;
+      /* テキストカラー（コントラストの高いスレート） */
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --text-inverse: #FFFFFF;
 
-      /* 左右トラック識別カラー */
-      --track-l: #38BDF8; /* 左: シアン */
-      --track-l-dim: rgba(56, 189, 248, 0.15);
-      --track-r: #FBBF24; /* 右: アンバー */
-      --track-r-dim: rgba(251, 191, 36, 0.15);
+      /* 左右トラック識別カラー（白背景で視認性の高い明瞭な色調） */
+      --track-l: #0284C7; /* 左: スカイブルー */
+      --track-l-dim: #E0F2FE;
+      --track-r: #D97706; /* 右: アンバー */
+      --track-r-dim: #FEF3C7;
 
       /* アクションカラー */
-      --color-primary: #0078D4;
-      --color-primary-hover: #0066B4;
-      --color-danger: #9B2C2C; /* 落ち着いた赤色系統 */
+      --color-primary: #0284C7;
+      --color-primary-hover: #0369A1;
+      --color-danger: #9B2C2C; /* 落ち着いたダークレッド */
       --color-danger-hover: #792222;
       --color-alert: #EF4444;
+      --color-warning-bg: #FEF2F2;
+      --color-warning-border: #FCA5A5;
 
       --radius-sm: 6px;
       --radius-md: 10px;
       --radius-lg: 16px;
+
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
+      --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.07);
+      --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
 
       --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
       --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -72,7 +81,7 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 16px 12px 32px;
+      padding: 16px 12px 36px;
     }
 
     .app-shell {
@@ -84,27 +93,80 @@
     }
 
     /* =====================================================================
-       3. ヘッダー
+       3. Chrome誘導バナー（他ブラウザ検知時に表示）
+       ===================================================================== */
+    #chromePrompt {
+      display: none;
+      background: #EFF6FF;
+      border: 1px solid #BFDBFE;
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    #chromePrompt p {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #1E40AF;
+      line-height: 1.4;
+    }
+
+    #openInChromeBtn {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 8px 20px;
+      background: #2563EB;
+      color: #FFFFFF;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      border-radius: 20px;
+      text-decoration: none;
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+      transition: background 0.15s;
+    }
+
+    #openInChromeBtn:active {
+      background: #1D4ED8;
+    }
+
+    /* =====================================================================
+       4. ヘッダー & 警告テキスト
        ===================================================================== */
     header {
       padding: 4px 2px;
     }
 
     header h1 {
-      font-size: 1.15rem;
+      font-size: 1.2rem;
       font-weight: 700;
       letter-spacing: -0.01em;
       color: var(--text-main);
     }
 
-    header p {
+    .header-desc {
       font-size: 0.8125rem;
       color: var(--text-muted);
-      margin-top: 2px;
+      margin-top: 4px;
+      line-height: 1.6;
+    }
+
+    /* 「Chrome以外では正常に動作しません」の強調表示 */
+    .chrome-warning-badge {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 4px 10px;
+      background-color: var(--color-warning-bg);
+      border: 1px solid var(--color-warning-border);
+      border-radius: var(--radius-sm);
+      color: #B91C1C;
+      font-weight: 700;
+      font-size: 0.8125rem;
+      letter-spacing: 0.02em;
     }
 
     /* =====================================================================
-       4. フェーズ画面表示制御
+       5. フェーズ画面表示制御
        ===================================================================== */
     .phase {
       display: none;
@@ -122,14 +184,14 @@
     }
 
     /* =====================================================================
-       5. カード & ファイル入力
+       6. 白基調カード & ファイル入力
        ===================================================================== */
     .card {
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-lg);
-      padding: 18px;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+      padding: 20px;
+      box-shadow: var(--shadow-md);
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -141,8 +203,10 @@
       gap: 10px;
       padding: 14px;
       border-radius: var(--radius-md);
-      background: var(--bg-surface-elevated);
-      border-left: 4px solid var(--border-subtle);
+      background: #FFFFFF;
+      border: 1px solid var(--border-subtle);
+      border-left: 5px solid var(--border-strong);
+      box-shadow: var(--shadow-sm);
       transition: border-color 0.2s;
     }
 
@@ -165,25 +229,25 @@
 
     .file-input {
       font-size: 0.8125rem;
-      color: var(--text-muted);
+      color: var(--text-main);
       cursor: pointer;
     }
 
     .file-input::file-selector-button {
       padding: 6px 14px;
       border-radius: var(--radius-sm);
-      border: 1px solid var(--border-subtle);
-      background: var(--bg-surface);
+      border: 1px solid var(--border-strong);
+      background: var(--bg-surface-elevated);
       color: var(--text-main);
       font-size: 0.75rem;
       font-weight: 600;
       cursor: pointer;
       margin-right: 10px;
-      transition: background 0.15s;
+      transition: all 0.15s;
     }
 
     .file-input::file-selector-button:hover {
-      background: var(--border-subtle);
+      background: #E2E8F0;
     }
 
     .fps-switch {
@@ -196,7 +260,7 @@
       padding: 6px 0;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-subtle);
-      background: transparent;
+      background: var(--bg-surface-elevated);
       color: var(--text-muted);
       font-size: 0.75rem;
       font-weight: 600;
@@ -207,17 +271,17 @@
     .side-l .fps-btn.active {
       border-color: var(--track-l);
       background: var(--track-l-dim);
-      color: var(--text-main);
+      color: var(--track-l);
     }
 
     .side-r .fps-btn.active {
       border-color: var(--track-r);
       background: var(--track-r-dim);
-      color: var(--text-main);
+      color: var(--track-r);
     }
 
     /* =====================================================================
-       6. プレビューキャンバス（9:16比率）
+       7. プレビューキャンバス（9:16比率）
        ===================================================================== */
     #previewWrap {
       position: relative;
@@ -226,7 +290,7 @@
       overflow: hidden;
       background: #000;
       border: 1px solid var(--border-subtle);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      box-shadow: var(--shadow-lg);
     }
 
     canvas {
@@ -239,12 +303,14 @@
     .frame-status {
       display: flex;
       justify-content: space-between;
-      padding: 8px 12px;
+      padding: 8px 14px;
       font-size: 0.8125rem;
       font-family: var(--font-mono);
       font-weight: 600;
-      background: var(--bg-surface-elevated);
+      background: #FFFFFF;
+      border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
       margin-bottom: 8px;
     }
 
@@ -252,7 +318,7 @@
     .frame-status .r-stat { color: var(--track-r); }
 
     /* =====================================================================
-       7. 操作グリッド & ボタン体系
+       8. コントロールグリッド & ボタン体系
        ===================================================================== */
     .controls-grid {
       display: grid;
@@ -267,10 +333,18 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
+      border: 1px solid transparent;
     }
 
-    .ctrl-column.side-l { background: var(--track-l-dim); }
-    .ctrl-column.side-r { background: var(--track-r-dim); }
+    .ctrl-column.side-l {
+      background: var(--track-l-dim);
+      border-color: rgba(2, 132, 199, 0.2);
+    }
+
+    .ctrl-column.side-r {
+      background: var(--track-r-dim);
+      border-color: rgba(217, 119, 6, 0.2);
+    }
 
     .ctrl-column-header {
       font-size: 0.75rem;
@@ -301,8 +375,8 @@
     .step-btn {
       min-height: 40px;
       border-radius: var(--radius-sm);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      background: #FFFFFF;
       color: var(--text-main);
       font-size: 0.8125rem;
       font-weight: 600;
@@ -310,17 +384,18 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: background 0.1s, transform 0.05s;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+      transition: all 0.1s;
     }
 
     .step-btn:active {
-      background: rgba(255, 255, 255, 0.2);
+      background: #F1F5F9;
       transform: scale(0.97);
     }
 
     .btn {
       width: 100%;
-      min-height: 46px;
+      min-height: 48px;
       padding: 10px 16px;
       border-radius: var(--radius-md);
       border: none;
@@ -337,7 +412,8 @@
 
     .btn-primary {
       background: var(--color-primary);
-      color: #FFF;
+      color: #FFFFFF;
+      box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
     }
 
     .btn-primary:hover:not(:disabled) {
@@ -345,19 +421,20 @@
     }
 
     .btn-secondary {
-      background: var(--bg-surface-elevated);
+      background: #FFFFFF;
       color: var(--text-main);
-      border: 1px solid var(--border-subtle);
+      border: 1px solid var(--border-strong);
+      box-shadow: var(--shadow-sm);
     }
 
     .btn-secondary:hover:not(:disabled) {
-      background: var(--border-subtle);
+      background: var(--bg-surface-elevated);
     }
 
-    /* 落ち着いた赤色系統ボタン */
     .btn-danger {
       background: var(--color-danger);
-      color: #FFF;
+      color: #FFFFFF;
+      box-shadow: 0 2px 6px rgba(155, 44, 44, 0.25);
     }
 
     .btn-danger:hover:not(:disabled) {
@@ -365,21 +442,23 @@
     }
 
     .btn-toggle {
-      background: var(--bg-surface-elevated);
+      background: #FFFFFF;
       color: var(--text-main);
-      border: 1px solid var(--border-subtle);
+      border: 1px solid var(--border-strong);
+      box-shadow: var(--shadow-sm);
     }
 
     .btn-toggle.active {
       background: var(--color-alert);
       border-color: var(--color-alert);
-      color: #FFF;
+      color: #FFFFFF;
     }
 
     .btn:disabled {
-      opacity: 0.4;
+      opacity: 0.45;
       cursor: not-allowed;
       transform: none !important;
+      box-shadow: none;
     }
 
     .speed-grid {
@@ -393,18 +472,19 @@
       min-height: 38px;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-subtle);
-      background: var(--bg-surface-elevated);
+      background: #FFFFFF;
       color: var(--text-muted);
       font-size: 0.8125rem;
       font-weight: 600;
       cursor: pointer;
+      box-shadow: var(--shadow-sm);
       transition: all 0.15s;
     }
 
     .speed-btn.active {
       border-color: var(--color-primary);
-      background: rgba(0, 120, 212, 0.2);
-      color: #FFF;
+      background: var(--track-l-dim);
+      color: var(--color-primary);
     }
 
     .rec-indicator {
@@ -422,7 +502,7 @@
       height: 10px;
       border-radius: 50%;
       background: var(--color-alert);
-      box-shadow: 0 0 8px var(--color-alert);
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
       animation: pulse 1.2s infinite ease-in-out;
     }
 
@@ -432,21 +512,21 @@
     }
 
     /* =====================================================================
-       8. トースト通知 & フッター免責事項
+       9. トースト通知 & フッター免責事項
        ===================================================================== */
     #toast {
       position: fixed;
       bottom: 24px;
       left: 50%;
       transform: translateX(-50%) translateY(100px);
-      background: var(--bg-surface-elevated);
-      color: var(--text-main);
+      background: #1E293B;
+      color: #FFFFFF;
       padding: 12px 20px;
       border-radius: var(--radius-md);
       font-size: 0.875rem;
       font-weight: 500;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-      border: 1px solid var(--border-subtle);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      border: 1px solid #334155;
       z-index: 9999;
       opacity: 0;
       pointer-events: none;
@@ -461,9 +541,9 @@
     }
 
     #toast.error {
-      border-color: var(--color-alert);
-      background: #2D1414;
-      color: #FECACA;
+      border-color: #F87171;
+      background: #7F1D1D;
+      color: #FEE2E2;
     }
 
     .disclaimer-box {
@@ -474,7 +554,7 @@
       padding: 8px 4px 16px;
     }
 
-    /* 動画要素（実証済みの安定設定：CSSで非表示にしつつDOM上に存在させる） */
+    /* 動画デコード用（表示は消しつつDOM上に配置） */
     video.srcvid {
       display: none;
     }
@@ -493,9 +573,18 @@
 <div id="toast" role="status" aria-live="polite"></div>
 
 <div class="app-shell">
+  <!-- Chrome誘導バナー（他ブラウザ時に自動表示） -->
+  <div id="chromePrompt">
+    <p>このツールは <strong>Google Chrome</strong> で最も安定して動作します。</p>
+    <a id="openInChromeBtn" href="#">Chromeで開き直す</a>
+  </div>
+
   <header>
     <h1>縦分割してムーブ比較検証動画作成ツール by 武庫</h1>
-    <p>左右2本の登攀動画をフレーム単位で同期・検証し、比較動画を作成します</p>
+    <div class="header-desc">
+      左右2本の登攀動画をフレーム単位で同期・検証し、比較動画を作成します。<br>
+      <span class="chrome-warning-badge">※Google Chrome 以外では正常に動作しません</span>
+    </div>
   </header>
 
   <!-- =====================================================================
@@ -671,7 +760,7 @@
 <script>
 /**
  * @file SyncClimb Core Engine
- * @description 登攀動画の同期、フレーム単位のシーク、クロップ描画、録画を統括するプロダクションコード。
+ * @description 登攀動画の同期、フレーム単位のシーク、クロップ描画、録画を統括するスクリプト。
  * @author 武庫
  * @license Proprietary
  */
@@ -715,6 +804,8 @@
     shareBtn: document.getElementById("shareBtn"),
     restartBtn: document.getElementById("restartBtn"),
     toast: document.getElementById("toast"),
+    chromePrompt: document.getElementById("chromePrompt"),
+    openInChromeBtn: document.getElementById("openInChromeBtn"),
   };
 
   const ctx = DOM.canvas.getContext("2d", { alpha: false });
@@ -748,7 +839,30 @@
   const objectUrls = { L: null, R: null, result: null };
 
   // ===================================================================
-  // 4. ユーティリティ
+  // 4. Chrome ブラウザ判定 & 誘導処理
+  // ===================================================================
+  (function initBrowserCheck() {
+    const ua = navigator.userAgent.toLowerCase();
+    const isIOS = /iphone|ipad|ipod/.test(ua);
+    const isAndroid = /android/.test(ua);
+    // iOS上のChromeは 'crios'、それ以外は 'chrome' かつ他社ブラウザでないこと
+    const isChrome = /crios/.test(ua) || (/chrome/.test(ua) && !/edge|edg|opr|opera|line/.test(ua));
+
+    // スマホ環境でChrome以外（SafariやLINE内蔵ブラウザ等）の場合にバナー表示
+    if ((isIOS || isAndroid) && !isChrome) {
+      DOM.chromePrompt.style.display = "block";
+      if (isIOS) {
+        // iOS版Chromeを開くURLスキーム
+        DOM.openInChromeBtn.href = "googlechrome://koriba1106.github.io/syncmovie/index.html";
+      } else if (isAndroid) {
+        // Android版Chromeを開くIntent
+        DOM.openInChromeBtn.href = "intent://koriba1106.github.io/syncmovie/index.html#Intent;scheme=https;package=com.android.chrome;end";
+      }
+    }
+  })();
+
+  // ===================================================================
+  // 5. ユーティリティ
   // ===================================================================
 
   /**
@@ -789,7 +903,7 @@
     typeof HTMLCanvasElement.prototype.captureStream === "function";
 
   if (!CAN_RECORD) {
-    showToast("このブラウザは録画APIに対応していません。最新のChromeまたはEdgeをご利用ください。", true);
+    showToast("このブラウザは録画APIに対応していません。Chromeをご利用ください。", true);
   }
 
   // 録画中の離脱防止
@@ -801,12 +915,11 @@
   });
 
   // ===================================================================
-  // 5. 動画読み込みパイプライン（スマートフォン・全ブラウザ完全動作型）
+  // 6. 動画読み込みパイプライン（実証済み安定型）
   // ===================================================================
 
   /**
-   * input要素とvideo要素を接続
-   * index_2.htmlの実証済みロジック：
+   * input要素とvideo要素をバインド
    * 余計なPromiseや空src初期化を行わず、直接オブジェクトURLを代入することで
    * モバイルChromiumの空ソース誤検知（Error Code 4）を完全に回避する
    */
@@ -879,7 +992,7 @@
   });
 
   // ===================================================================
-  // 6. 描画・クロップ演算・タイマーHUD
+  // 7. 描画・クロップ演算・タイマーHUD
   // ===================================================================
 
   /**
@@ -1010,7 +1123,7 @@
   });
 
   // ===================================================================
-  // 7. 録画エンジン (Phase 3)
+  // 8. 録画エンジン (Phase 3)
   // ===================================================================
 
   DOM.confirmStartBtn.addEventListener("click", startRecording);
@@ -1033,7 +1146,7 @@
     if (state.recording) return;
 
     if (!CAN_RECORD) {
-      showToast("このブラウザでは録画を開始できません。ChromeまたはEdgeをお試しください。", true);
+      showToast("このブラウザでは録画を開始できません。Chromeをお試しください。", true);
       return;
     }
 
@@ -1250,7 +1363,7 @@
   });
 
   // ===================================================================
-  // 8. PC向けキーボードショートカット
+  // 9. PC向けキーボードショートカット
   // ===================================================================
   window.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT") return;
