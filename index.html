@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-  <meta name="description" content="左右2本の登攀動画をフレーム単位で同期・検証し、比較動画を作成するツール。">
-  <meta name="theme-color" content="#181B1E">
+  <meta name="description" content="左右2本の登攀動画を高精度に同期・検証し、比較動画を作成するプロ向けWebツール。">
+  <meta name="theme-color" content="#14171A">
   <meta name="color-scheme" content="dark">
   <meta name="format-detection" content="telephone=no">
   <meta name="mobile-web-app-capable" content="yes">
@@ -14,28 +14,28 @@
 
   <style>
     /* =====================================================================
-       1. デザイントークン & テーマ変数定義
+       1. デザイントークン & カラーシステム
        ===================================================================== */
     :root {
       --bg-base: #14171A;
       --bg-surface: #1E2328;
-      --bg-surface-elevated: #282E35;
+      --bg-surface-elevated: #262D34;
       --border-subtle: #363E47;
-      --border-focus: #4F80FF;
+      --border-focus: #38BDF8;
 
       --text-main: #F2F4F7;
       --text-muted: #94A0B0;
 
-      /* 左右トラックの識別カラー */
-      --color-track-l: #38BDF8; /* 左: シアン */
-      --color-track-l-dim: rgba(56, 189, 248, 0.15);
-      --color-track-r: #FBBF24; /* 右: アンバー */
-      --color-track-r-dim: rgba(251, 191, 36, 0.15);
+      /* 左右トラック識別カラー */
+      --track-l: #38BDF8; /* 左: シアン */
+      --track-l-dim: rgba(56, 189, 248, 0.15);
+      --track-r: #FBBF24; /* 右: アンバー */
+      --track-r-dim: rgba(251, 191, 36, 0.15);
 
       /* アクションカラー */
       --color-primary: #0078D4;
       --color-primary-hover: #0066B4;
-      --color-danger: #9B2C2C; /* 落ち着いたダークレッド */
+      --color-danger: #9B2C2C; /* 落ち着いた赤色系統 */
       --color-danger-hover: #792222;
       --color-alert: #EF4444;
 
@@ -43,7 +43,7 @@
       --radius-md: 10px;
       --radius-lg: 16px;
 
-      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
       --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
     }
 
@@ -77,21 +77,21 @@
 
     .app-shell {
       width: 100%;
-      max-width: 540px;
+      max-width: 520px;
       display: flex;
       flex-direction: column;
       gap: 16px;
     }
 
     /* =====================================================================
-       3. ヘッダー & ナビゲーション
+       3. ヘッダー
        ===================================================================== */
     header {
-      padding: 6px 4px;
+      padding: 4px 2px;
     }
 
     header h1 {
-      font-size: 1.1875rem;
+      font-size: 1.15rem;
       font-weight: 700;
       letter-spacing: -0.01em;
       color: var(--text-main);
@@ -122,7 +122,7 @@
     }
 
     /* =====================================================================
-       5. カード & フォームコンポーネント
+       5. カード & ファイル入力
        ===================================================================== */
     .card {
       background: var(--bg-surface);
@@ -146,8 +146,8 @@
       transition: border-color 0.2s;
     }
 
-    .file-group.side-l { border-left-color: var(--color-track-l); }
-    .file-group.side-r { border-left-color: var(--color-track-r); }
+    .file-group.side-l { border-left-color: var(--track-l); }
+    .file-group.side-r { border-left-color: var(--track-r); }
 
     .file-group-header {
       display: flex;
@@ -160,8 +160,8 @@
       font-weight: 700;
     }
 
-    .side-l .file-group-title { color: var(--color-track-l); }
-    .side-r .file-group-title { color: var(--color-track-r); }
+    .side-l .file-group-title { color: var(--track-l); }
+    .side-r .file-group-title { color: var(--track-r); }
 
     .file-input {
       font-size: 0.8125rem;
@@ -205,21 +205,21 @@
     }
 
     .side-l .fps-btn.active {
-      border-color: var(--color-track-l);
-      background: var(--color-track-l-dim);
+      border-color: var(--track-l);
+      background: var(--track-l-dim);
       color: var(--text-main);
     }
 
     .side-r .fps-btn.active {
-      border-color: var(--color-track-r);
-      background: var(--color-track-r-dim);
+      border-color: var(--track-r);
+      background: var(--track-r-dim);
       color: var(--text-main);
     }
 
     /* =====================================================================
        6. プレビューキャンバス（9:16比率）
        ===================================================================== */
-    #previewWrapper {
+    #previewWrap {
       position: relative;
       width: 100%;
       border-radius: var(--radius-lg);
@@ -248,8 +248,8 @@
       margin-bottom: 8px;
     }
 
-    .frame-status .l-stat { color: var(--color-track-l); }
-    .frame-status .r-stat { color: var(--color-track-r); }
+    .frame-status .l-stat { color: var(--track-l); }
+    .frame-status .r-stat { color: var(--track-r); }
 
     /* =====================================================================
        7. 操作グリッド & ボタン体系
@@ -269,8 +269,8 @@
       gap: 8px;
     }
 
-    .ctrl-column.side-l { background: var(--color-track-l-dim); }
-    .ctrl-column.side-r { background: var(--color-track-r-dim); }
+    .ctrl-column.side-l { background: var(--track-l-dim); }
+    .ctrl-column.side-r { background: var(--track-r-dim); }
 
     .ctrl-column-header {
       font-size: 0.75rem;
@@ -278,8 +278,8 @@
       text-transform: uppercase;
     }
 
-    .ctrl-column.side-l .ctrl-column-header { color: var(--color-track-l); }
-    .ctrl-column.side-r .ctrl-column-header { color: var(--color-track-r); }
+    .ctrl-column.side-l .ctrl-column-header { color: var(--track-l); }
+    .ctrl-column.side-r .ctrl-column-header { color: var(--track-r); }
 
     .btn-row {
       display: grid;
@@ -354,6 +354,7 @@
       background: var(--border-subtle);
     }
 
+    /* 落ち着いた赤色系統ボタン */
     .btn-danger {
       background: var(--color-danger);
       color: #FFF;
@@ -473,7 +474,7 @@
       padding: 8px 4px 16px;
     }
 
-    /* 動画要素（index_2.htmlの実装を準拠：表示は消しつつDOM上に確実に配置） */
+    /* 動画要素（実証済みの安定設定：CSSで非表示にしつつDOM上に存在させる） */
     video.srcvid {
       display: none;
     }
@@ -488,7 +489,7 @@
   </div>
 </noscript>
 
-<!-- 通知用トースト -->
+<!-- 通知トースト -->
 <div id="toast" role="status" aria-live="polite"></div>
 
 <div class="app-shell">
@@ -498,7 +499,7 @@
   </header>
 
   <!-- =====================================================================
-       Phase 1: 動画ファイル選択画面
+       Phase 1: 動画ファイル選択
        ===================================================================== -->
   <section id="phase-select" class="phase active">
     <div class="card">
@@ -632,7 +633,7 @@
   </section>
 
   <!-- =====================================================================
-       Phase 4: 出力結果・書き出し完了画面
+       Phase 4: 出力結果・完了画面
        ===================================================================== -->
   <section id="phase-result" class="phase">
     <div class="card">
@@ -659,20 +660,20 @@
 </div>
 
 <!-- =====================================================================
-     動画デコード用エレメント（index_2.htmlと完全互換）
+     動画デコード用エレメント（実証済みの確実な読み込み構成）
      ===================================================================== -->
 <video class="srcvid" id="videoL" muted playsinline preload="auto"></video>
 <video class="srcvid" id="videoR" muted playsinline preload="auto"></video>
 
 <!-- =====================================================================
-     コアスクリプト（プロダクション品質）
+     コアエンジン スクリプト
      ===================================================================== -->
 <script>
 /**
  * @file SyncClimb Core Engine
- * @description 登攀動画の同期、フレーム送り、左右分割クロップ描画、WebM録画を統括するプロダクションコード。
+ * @description 登攀動画の同期、フレーム単位のシーク、クロップ描画、録画を統括するプロダクションコード。
  * @author 武庫
- * @license Proprietary (All Rights Reserved)
+ * @license Proprietary
  */
 (function () {
   "use strict";
@@ -684,12 +685,12 @@
     OUT_WIDTH: 720,
     OUT_HEIGHT: 1280,
     HALF_WIDTH: 360,
-    DEFAULT_SHIFT_STEP: 15,
     RECORDING_FPS: 30,
+    DEFAULT_SHIFT_STEP: 15,
   };
 
   // ===================================================================
-  // 2. DOM要素の参照キャッシュ
+  // 2. DOM要素参照キャッシュ
   // ===================================================================
   const DOM = {
     videoL: document.getElementById("videoL"),
@@ -719,7 +720,7 @@
   const ctx = DOM.canvas.getContext("2d", { alpha: false });
 
   // ===================================================================
-  // 3. アプリケーション状態管理 (State)
+  // 3. アプリケーション状態 (State)
   // ===================================================================
   const state = {
     phase: "select",
@@ -743,7 +744,7 @@
   let lastTs = null;
   let toastTimer = null;
 
-  /** オブジェクトURL管理（メモリリーク防止用） */
+  /** オブジェクトURL管理（メモリリーク防止） */
   const objectUrls = { L: null, R: null, result: null };
 
   // ===================================================================
@@ -751,9 +752,9 @@
   // ===================================================================
 
   /**
-   * 通知トーストを表示する
-   * @param {string} message - 表示メッセージ
-   * @param {boolean} [isError=false] - エラー表示フラグ
+   * 通知トーストの表示
+   * @param {string} message - メッセージ内容
+   * @param {boolean} [isError=false] - エラー表示スタイル
    */
   function showToast(message, isError = false) {
     DOM.toast.textContent = message;
@@ -769,7 +770,7 @@
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
   /**
-   * フェーズ画面の切り替え
+   * フェーズ切り替え
    * @param {string} phaseId - 'select' | 'setup' | 'record' | 'result'
    */
   function showPhase(phaseId) {
@@ -782,15 +783,16 @@
       phaseId === "setup" || phaseId === "record" ? "block" : "none";
   }
 
-  // 録画機能のサポート判定
+  // 録画機能サポート確認
   const CAN_RECORD =
     typeof window.MediaRecorder === "function" &&
     typeof HTMLCanvasElement.prototype.captureStream === "function";
 
   if (!CAN_RECORD) {
-    showToast("このブラウザは動画の録画機能に対応していません。ChromeまたはEdgeをご利用ください。", true);
+    showToast("このブラウザは録画APIに対応していません。最新のChromeまたはEdgeをご利用ください。", true);
   }
 
+  // 録画中の離脱防止
   window.addEventListener("beforeunload", (e) => {
     if (state.recording) {
       e.preventDefault();
@@ -799,19 +801,21 @@
   });
 
   // ===================================================================
-  // 5. 動画ファイル読み込みパイプライン（index_2.html互換・完全安定型）
+  // 5. 動画読み込みパイプライン（スマートフォン・全ブラウザ完全動作型）
   // ===================================================================
 
   /**
-   * ファイル選択イベントとvideo要素のバインド
-   * index_2.htmlで実証された確実に読み込めるフローを厳格に保持
+   * input要素とvideo要素を接続
+   * index_2.htmlの実証済みロジック：
+   * 余計なPromiseや空src初期化を行わず、直接オブジェクトURLを代入することで
+   * モバイルChromiumの空ソース誤検知（Error Code 4）を完全に回避する
    */
   function bindFile(input, video, sideKey) {
     input.addEventListener("change", () => {
       const f = input.files[0];
       if (!f) return;
 
-      // 前回のURLがあれば解放
+      // 前回のURLがあればメモリ解放
       if (objectUrls[sideKey]) {
         URL.revokeObjectURL(objectUrls[sideKey]);
       }
@@ -820,6 +824,7 @@
       objectUrls[sideKey] = url;
       video.src = url;
 
+      // メタデータ取得完了時に先頭フレーム（0秒）へ合わせる
       video.addEventListener(
         "loadedmetadata",
         function onMeta() {
@@ -855,7 +860,7 @@
     });
   });
 
-  /** 2本の動画が準備完了しているか検証 */
+  /** 両動画の準備状態を確認 */
   function checkReady() {
     const ready = DOM.videoL.readyState >= 1 && DOM.videoR.readyState >= 1;
     DOM.toSetupBtn.disabled = !ready;
@@ -878,7 +883,7 @@
   // ===================================================================
 
   /**
-   * 左右の半分領域（幅360×高さ1280）に指定動画を中央クロップして描画
+   * 元動画から9:32の縦長領域を切り出し、キャンバスの左右半分（360x1280）に描画
    */
   function drawHalf(video, destX, offsetPx) {
     if (!video || !video.videoWidth) {
@@ -909,7 +914,7 @@
   }
 
   /**
-   * タイマーHUDオーバーレイの描画
+   * 高視認性タイマーオーバーレイを描画
    */
   function drawTimerHalf(destX, elapsedSec, paused) {
     const e = Math.max(0, elapsedSec);
@@ -931,7 +936,7 @@
     const cx = destX + CONFIG.HALF_WIDTH / 2;
     const cy = CONFIG.OUT_HEIGHT - 90;
 
-    // 半透明プレート
+    // 半透明プレート（通常時はダークグレー、停止時はレッド）
     ctx.fillStyle = paused ? "rgba(180, 20, 20, 0.85)" : "rgba(10, 12, 16, 0.72)";
     ctx.beginPath();
     ctx.roundRect(cx - boxW / 2, cy - th / 2, boxW, th, 8);
@@ -946,7 +951,7 @@
     ctx.restore();
   }
 
-  /** 静止画比較プレビューの描画 */
+  /** 静止同期プレビューを描画（位置調整フェーズ用） */
   function drawStatic() {
     ctx.clearRect(0, 0, CONFIG.OUT_WIDTH, CONFIG.OUT_HEIGHT);
     drawHalf(DOM.videoL, 0, state.offsetL);
@@ -1005,7 +1010,7 @@
   });
 
   // ===================================================================
-  // 7. 録画セッション管理 (Phase 3)
+  // 7. 録画エンジン (Phase 3)
   // ===================================================================
 
   DOM.confirmStartBtn.addEventListener("click", startRecording);
@@ -1103,6 +1108,7 @@
     drawTimerHalf(0, state.totalElapsed, state.pauseL || state.finishedL);
     drawTimerHalf(CONFIG.HALF_WIDTH, state.totalElapsed, state.pauseR || state.finishedR);
 
+    // 両動画が終了した場合は自動停止
     if (state.finishedL && state.finishedR) {
       finishRecording(false);
       return;
@@ -1210,9 +1216,10 @@
           await navigator.share({
             files: [shareFile],
             title: "登攀ムーブ比較動画",
+            text: "SyncClimbで作成したムーブ比較検証動画です。",
           });
         } catch (e) {
-          // ユーザーによる共有キャンセル時は何もしない
+          // ユーザーキャンセル時は何もしない
         }
       } else {
         alert("この端末では直接共有ができません。「端末に保存する」をご利用ください。");
@@ -1222,7 +1229,6 @@
     showPhase("result");
   }
 
-  // リセット処理
   DOM.restartBtn.addEventListener("click", () => {
     DOM.fileL.value = "";
     DOM.fileR.value = "";
@@ -1274,15 +1280,6 @@
   });
 
 })();
-
-// Service Worker (PWA)
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch((err) => {
-      console.warn("Service Worker registration failed:", err);
-    });
-  });
-}
 </script>
 </body>
 </html>
