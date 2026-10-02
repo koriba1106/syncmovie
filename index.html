@@ -776,6 +776,10 @@
     HALF_WIDTH: 360,
     RECORDING_FPS: 30,
     DEFAULT_SHIFT_STEP: 15,
+    VIDEO_BITRATE: 6000000,                 // 録画ビットレート (bps)
+    KEYFRAME_INTERVAL_FRAMES: 60,           // キーフレーム間隔（約2秒）
+    MAX_ENCODE_QUEUE: 8,                    // エンコード待ちフレーム上限
+    MAX_RECORD_BYTES: 900 * 1024 * 1024,    // 録画データ容量の安全上限
   };
 
   // ===================================================================
@@ -829,8 +833,12 @@
     recording: false,
   };
 
-  let mediaRecorder = null;
-  let recordedChunks = [];
+  let recorderEngine = null;
+  let starting = false;
+  let finalizing = false;
+  let suspended = false;
+  let wakeLock = null;
+  let lastKick = 0;
   let rafId = null;
   let lastTs = null;
   let toastTimer = null;
@@ -898,9 +906,13 @@
   }
 
   // 録画機能サポート確認
-  const CAN_RECORD =
+  const HAS_WEBCODECS =
+    typeof window.VideoEncoder === "function" &&
+    typeof window.VideoFrame === "function";
+  const HAS_MEDIARECORDER =
     typeof window.MediaRecorder === "function" &&
     typeof HTMLCanvasElement.prototype.captureStream === "function";
+  const CAN_RECORD = HAS_WEBCODECS || HAS_MEDIARECORDER;
 
   if (!CAN_RECORD) {
     showToast("このブラウザは録画APIに対応していません。Chromeをご利用ください。", true);
@@ -1128,13 +1140,416 @@
 
   DOM.confirmStartBtn.addEventListener("click", startRecording);
 
+  // -------------------------------------------------------------------
+  // 8-1. MP4 マルチプレクサ
+  //   H.264 ビデオのみ / 非フラグメント / moov 先頭配置（faststart）。
+  //   再生時間・サンプル表を完全な形で書き込むため、写真アプリ・Googleフォト・
+  //   PC・SNS 等のどのプレイヤーでも「全長が正しく」認識される。
+  // -------------------------------------------------------------------
+  /*MP4MUXER_BEGIN*/
+  const Mp4Muxer = (function () {
+    const MEDIA_TIMESCALE = 90000;
+    const MOVIE_TIMESCALE = 1000;
+
+    const ascii = (s) => {
+      const a = new Uint8Array(s.length);
+      for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i) & 0xff;
+      return a;
+    };
+    const concat = (parts) => {
+      let n = 0;
+      for (const p of parts) n += p.length;
+      const out = new Uint8Array(n);
+      let k = 0;
+      for (const p of parts) { out.set(p, k); k += p.length; }
+      return out;
+    };
+    const zeros = (n) => new Uint8Array(n);
+    const u8 = (...v) => Uint8Array.from(v);
+    const u16 = (...v) => {
+      const b = new Uint8Array(v.length * 2);
+      const dv = new DataView(b.buffer);
+      for (let i = 0; i < v.length; i++) dv.setUint16(i * 2, v[i] & 0xffff);
+      return b;
+    };
+    const u32 = (...v) => u32arr(v);
+    const u32arr = (arr) => {
+      const b = new Uint8Array(arr.length * 4);
+      const dv = new DataView(b.buffer);
+      for (let i = 0; i < arr.length; i++) dv.setUint32(i * 4, arr[i] >>> 0);
+      return b;
+    };
+    const box = (type, ...parts) => {
+      const body = concat(parts);
+      const out = new Uint8Array(8 + body.length);
+      new DataView(out.buffer).setUint32(0, out.length);
+      out.set(ascii(type), 4);
+      out.set(body, 8);
+      return out;
+    };
+    const fullBox = (type, version, flags, ...parts) =>
+      box(type, u32(((version & 0xff) << 24) | (flags & 0xffffff)), ...parts);
+
+    const MATRIX = u32(0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000);
+
+    function buildMoov(p) {
+      const mvhd = fullBox("mvhd", 0, 0,
+        u32(p.now, p.now, MOVIE_TIMESCALE, p.durMovie),
+        u32(0x00010000), u16(0x0100), zeros(10), MATRIX, zeros(24), u32(2));
+
+      const tkhd = fullBox("tkhd", 0, 3,
+        u32(p.now, p.now, 1, 0, p.durMovie),
+        zeros(8), u16(0, 0, 0, 0), MATRIX,
+        u32(p.width * 65536, p.height * 65536));
+
+      const mdhd = fullBox("mdhd", 0, 0,
+        u32(p.now, p.now, MEDIA_TIMESCALE, p.durMedia), u16(0x55c4, 0));
+
+      const hdlr = fullBox("hdlr", 0, 0,
+        u32(0), ascii("vide"), zeros(12), ascii("VideoHandler"), u8(0));
+
+      const vmhd = fullBox("vmhd", 0, 1, u16(0, 0, 0, 0));
+      const dinf = box("dinf", fullBox("dref", 0, 0, u32(1), fullBox("url ", 0, 1)));
+
+      const avc1 = box("avc1",
+        zeros(6), u16(1), u16(0, 0), zeros(12),
+        u16(p.width, p.height), u32(0x00480000, 0x00480000), u32(0),
+        u16(1), zeros(32), u16(0x0018, 0xffff),
+        box("avcC", p.avcC));
+      const stsd = fullBox("stsd", 0, 0, u32(1), avc1);
+
+      const sttsFlat = [];
+      for (const r of p.runs) sttsFlat.push(r[0], r[1]);
+      const stts = fullBox("stts", 0, 0, u32(p.runs.length), u32arr(sttsFlat));
+      const stss = fullBox("stss", 0, 0, u32(p.keys.length), u32arr(p.keys));
+      const stsc = fullBox("stsc", 0, 0, u32(1, 1, p.sizes.length, 1));
+      const stsz = fullBox("stsz", 0, 0, u32(0, p.sizes.length), u32arr(p.sizes));
+      const stco = fullBox("stco", 0, 0, u32(1, p.offset));
+
+      const stbl = box("stbl", stsd, stts, stss, stsc, stsz, stco);
+      const minf = box("minf", vmhd, dinf, stbl);
+      const mdia = box("mdia", mdhd, hdlr, minf);
+      const trak = box("trak", tkhd, mdia);
+      return box("moov", mvhd, trak);
+    }
+
+    /**
+     * @param {{data:Uint8Array, ts:number, key:boolean}[]} samplesIn  ts はマイクロ秒
+     * @param {Uint8Array} avcC  AVCDecoderConfigurationRecord
+     * @param {number} endUs     動画全体の終了時刻（マイクロ秒）
+     * @returns {Blob}
+     */
+    function mux(samplesIn, avcC, endUs, width, height) {
+      // 先頭は必ずキーフレームから開始
+      let start = 0;
+      while (start < samplesIn.length && !samplesIn[start].key) start++;
+      const samples = samplesIn.slice(start);
+      if (!samples.length) throw new Error("no key frame");
+
+      const n = samples.length;
+      const ts0 = samples[0].ts;
+      const dts = new Array(n);
+      let prev = -1;
+      for (let i = 0; i < n; i++) {
+        let d = Math.round(((samples[i].ts - ts0) * MEDIA_TIMESCALE) / 1e6);
+        if (d <= prev) d = prev + 1;
+        dts[i] = d;
+        prev = d;
+      }
+      let lastDur = Math.round(((endUs - ts0) * MEDIA_TIMESCALE) / 1e6) - dts[n - 1];
+      if (lastDur < 1) lastDur = 1;
+
+      const runs = [];
+      const sizes = new Array(n);
+      const keys = [];
+      let payloadBytes = 0;
+      for (let i = 0; i < n; i++) {
+        const delta = i < n - 1 ? dts[i + 1] - dts[i] : lastDur;
+        const lastRun = runs[runs.length - 1];
+        if (lastRun && lastRun[1] === delta) lastRun[0]++;
+        else runs.push([1, delta]);
+        sizes[i] = samples[i].data.byteLength;
+        payloadBytes += sizes[i];
+        if (samples[i].key) keys.push(i + 1);
+      }
+      const durMedia = dts[n - 1] + lastDur;
+      const durMovie = Math.max(1, Math.round((durMedia * MOVIE_TIMESCALE) / MEDIA_TIMESCALE));
+      if (payloadBytes + 8 > 0xffffffff) throw new Error("too large");
+
+      const ftyp = box("ftyp", ascii("isom"), u32(512),
+        ascii("isom"), ascii("iso2"), ascii("avc1"), ascii("mp41"));
+      const params = {
+        now: Math.floor(Date.now() / 1000) + 2082844800,
+        width, height, avcC, runs, keys, sizes, durMedia, durMovie, offset: 0,
+      };
+      const moovLen = buildMoov(params).length;
+      params.offset = ftyp.length + moovLen + 8;
+      const moov = buildMoov(params);
+      const mdatHeader = concat([u32(payloadBytes + 8), ascii("mdat")]);
+
+      return new Blob([ftyp, moov, mdatHeader, ...samples.map((s) => s.data)], { type: "video/mp4" });
+    }
+
+    return { mux };
+  })();
+  /*MP4MUXER_END*/
+
+  // -------------------------------------------------------------------
+  // 8-2. 録画エンジン共通ユーティリティ
+  // -------------------------------------------------------------------
+  const withTimeout = (promise, ms, label) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(label + " timeout")), ms);
+      promise.then(
+        (v) => { clearTimeout(timer); resolve(v); },
+        (e) => { clearTimeout(timer); reject(e); }
+      );
+    });
+
+  const toU8 = (d) =>
+    d instanceof ArrayBuffer
+      ? new Uint8Array(d)
+      : new Uint8Array(d.buffer, d.byteOffset, d.byteLength);
+
+  const sameBytes = (a, b) => {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  };
+
+  // -------------------------------------------------------------------
+  // 8-3. 主録画エンジン：WebCodecs (H.264) + 自前MP4出力
+  //   ・キャンバスの各フレームを実時間タイムスタンプ付きで直接エンコード
+  //   ・MediaRecorder のタイミング依存・ファイル終端の欠落問題を根本から回避
+  //   ・エンコーダ異常時は自動再起動し、録画を継続
+  // -------------------------------------------------------------------
+  const AVC_CODECS = ["avc1.640028", "avc1.4D0028", "avc1.420028", "avc1.42E01F"];
+
+  function encoderConfig(codec) {
+    return {
+      codec,
+      width: CONFIG.OUT_WIDTH,
+      height: CONFIG.OUT_HEIGHT,
+      bitrate: CONFIG.VIDEO_BITRATE,
+      framerate: CONFIG.RECORDING_FPS,
+      latencyMode: "realtime",
+      avc: { format: "avc" },
+    };
+  }
+
+  /** 録画開始前に実際に数フレームをエンコードし、動作を実証する */
+  async function probeCodec(codec) {
+    let enc = null;
+    try {
+      const cfg = encoderConfig(codec);
+      const sup = await VideoEncoder.isConfigSupported(cfg);
+      if (!sup || !sup.supported) return false;
+
+      let outputs = 0;
+      let hasDesc = false;
+      let failed = false;
+      enc = new VideoEncoder({
+        output: (chunk, meta) => {
+          outputs++;
+          if (meta && meta.decoderConfig && meta.decoderConfig.description) hasDesc = true;
+        },
+        error: () => { failed = true; },
+      });
+      enc.configure(cfg);
+      for (let i = 0; i < 3; i++) {
+        const f = new VideoFrame(DOM.canvas, { timestamp: i * 33333 });
+        try { enc.encode(f, { keyFrame: i === 0 }); } finally { f.close(); }
+      }
+      await withTimeout(enc.flush(), 5000, "probe flush");
+      return !failed && outputs >= 1 && hasDesc;
+    } catch (e) {
+      return false;
+    } finally {
+      try { if (enc && enc.state !== "closed") enc.close(); } catch (e) { /* noop */ }
+    }
+  }
+
+  async function createWebCodecsEngine() {
+    let chosen = null;
+    for (const c of AVC_CODECS) {
+      if (await probeCodec(c)) { chosen = c; break; }
+    }
+    if (!chosen) return null;
+
+    const order = [chosen, ...AVC_CODECS.filter((c) => c !== chosen)];
+    const FRAME_MIN_MS = 1000 / CONFIG.RECORDING_FPS - 2.5;
+    const FRAME_US = Math.round(1e6 / CONFIG.RECORDING_FPS);
+
+    const samples = [];
+    let totalBytes = 0;
+    let description = null;
+    let encoder = null;
+    let codecIdx = 0;
+    let restarts = 0;
+    let awaitKey = true;
+    let needKey = true;
+    let accepting = true;
+    let truncated = false;
+    let closed = false;
+    let t0 = null;
+    let pausedTotal = 0;
+    let suspendedAt = null;
+    let lastEncRel = -1e9;
+    let lastTsUs = -1;
+    let frameCount = 0;
+
+    const engine = { kind: "webcodecs", onFatal: null };
+
+    function giveUp() {
+      accepting = false;
+      truncated = true;
+      if (engine.onFatal) {
+        engine.onFatal("録画エンコーダーでエラーが発生しました。ここまでの内容を保存します。");
+      }
+    }
+
+    function onOutput(enc, chunk, meta) {
+      if (closed || enc !== encoder || !accepting) return;
+      const d = meta && meta.decoderConfig && meta.decoderConfig.description;
+      if (d) {
+        const u = toU8(d);
+        if (!description) {
+          description = u.slice();
+        } else if (!sameBytes(description, u)) {
+          // 再起動後の構成が互換でない場合は、ここまでを確定させる
+          giveUp();
+          return;
+        }
+      }
+      if (!description) return;
+      if (awaitKey) {
+        if (chunk.type !== "key") return;
+        awaitKey = false;
+      }
+      const buf = new Uint8Array(chunk.byteLength);
+      chunk.copyTo(buf);
+      samples.push({ data: buf, ts: chunk.timestamp, key: chunk.type === "key" });
+      totalBytes += buf.byteLength;
+    }
+
+    function openEncoder() {
+      const enc = new VideoEncoder({
+        output: (chunk, meta) => onOutput(enc, chunk, meta),
+        error: () => { if (enc === encoder) recover(); },
+      });
+      enc.configure(encoderConfig(order[codecIdx]));
+      encoder = enc;
+      awaitKey = true;
+      needKey = true;
+    }
+
+    function recover() {
+      if (closed || !accepting) return;
+      try { if (encoder && encoder.state !== "closed") encoder.close(); } catch (e) { /* noop */ }
+      encoder = null;
+      if (restarts >= 3) { giveUp(); return; }
+      restarts++;
+      if (samples.length === 0 && codecIdx + 1 < order.length) codecIdx++;
+      try { openEncoder(); } catch (e) { giveUp(); }
+    }
+
+    function relNow(nowMs) {
+      if (t0 === null) t0 = nowMs;
+      const ref = suspendedAt !== null ? suspendedAt : nowMs;
+      return ref - t0 - pausedTotal;
+    }
+
+    openEncoder();
+
+    engine.start = (nowMs) => { t0 = nowMs; };
+
+    engine.addFrame = (nowMs, force) => {
+      if (closed || !accepting || suspendedAt !== null || !encoder) return;
+      const rel = relNow(nowMs);
+      if (force) {
+        if (rel - lastEncRel < 5) return;
+      } else if (frameCount > 0 && rel - lastEncRel < FRAME_MIN_MS) {
+        return;
+      }
+      if (encoder.state !== "configured") { recover(); return; }
+      if (encoder.encodeQueueSize > CONFIG.MAX_ENCODE_QUEUE) return;
+
+      let tsUs = Math.round(rel * 1000);
+      if (tsUs <= lastTsUs) tsUs = lastTsUs + 1;
+      let frame = null;
+      try {
+        frame = new VideoFrame(DOM.canvas, { timestamp: tsUs });
+        encoder.encode(frame, {
+          keyFrame: needKey || frameCount % CONFIG.KEYFRAME_INTERVAL_FRAMES === 0,
+        });
+        needKey = false;
+        frameCount++;
+        lastEncRel = rel;
+        lastTsUs = tsUs;
+      } catch (e) {
+        recover();
+      } finally {
+        if (frame) frame.close();
+      }
+    };
+
+    engine.suspend = (nowMs) => {
+      if (suspendedAt === null) suspendedAt = nowMs;
+    };
+    engine.resume = (nowMs) => {
+      if (suspendedAt !== null) {
+        pausedTotal += nowMs - suspendedAt;
+        suspendedAt = null;
+      }
+    };
+    engine.bytes = () => totalBytes;
+
+    engine.finish = async (nowMs) => {
+      if (!closed) {
+        try { engine.addFrame(nowMs, true); } catch (e) { /* noop */ }
+        try {
+          if (encoder && encoder.state === "configured") {
+            await withTimeout(encoder.flush(), 10000, "flush");
+          }
+        } catch (e) {
+          truncated = true;
+        }
+      }
+      const endRel = relNow(nowMs);
+      closed = true;
+      try { if (encoder && encoder.state !== "closed") encoder.close(); } catch (e) { /* noop */ }
+      encoder = null;
+
+      if (!samples.length || !description) return null;
+      const lastUs = samples[samples.length - 1].ts;
+      const endUs = Math.max(Math.round(endRel * 1000), lastUs + FRAME_US);
+      const blob = Mp4Muxer.mux(samples, description, endUs, CONFIG.OUT_WIDTH, CONFIG.OUT_HEIGHT);
+      return { blob, mimeType: "video/mp4", truncated };
+    };
+
+    engine.abort = () => {
+      closed = true;
+      try { if (encoder && encoder.state !== "closed") encoder.close(); } catch (e) { /* noop */ }
+      encoder = null;
+      samples.length = 0;
+      totalBytes = 0;
+    };
+
+    return engine;
+  }
+
+  // -------------------------------------------------------------------
+  // 8-4. 予備録画エンジン：MediaRecorder（WebCodecs 非対応環境用）
+  // -------------------------------------------------------------------
   function pickMimeType() {
     const candidates = [
-      "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
-      "video/mp4",
-      "video/webm;codecs=vp9",
       "video/webm;codecs=vp8",
+      "video/webm;codecs=vp9",
       "video/webm",
+      "video/mp4;codecs=avc1.640028",
+      "video/mp4;codecs=avc1.4D0028",
+      "video/mp4;codecs=avc1.42E01E",
+      "video/mp4",
     ];
     for (const c of candidates) {
       if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c;
@@ -1142,15 +1557,159 @@
     return "";
   }
 
-  function startRecording() {
-    if (state.recording) return;
+  function createMediaRecorderEngine() {
+    if (!HAS_MEDIARECORDER) throw new Error("MediaRecorder unsupported");
+
+    const stream = DOM.canvas.captureStream(CONFIG.RECORDING_FPS);
+    const mime = pickMimeType();
+    let rec = null;
+    try {
+      const opts = { videoBitsPerSecond: CONFIG.VIDEO_BITRATE };
+      if (mime) opts.mimeType = mime;
+      rec = new MediaRecorder(stream, opts);
+    } catch (e) {
+      rec = new MediaRecorder(stream);
+    }
+
+    const chunks = [];
+    let totalBytes = 0;
+    let discard = false;
+    let stopResolve = null;
+    const stopped = new Promise((resolve) => { stopResolve = resolve; });
+    const engine = { kind: "mediarecorder", onFatal: null };
+
+    rec.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) {
+        chunks.push(e.data);
+        totalBytes += e.data.size;
+      }
+    };
+    rec.onstop = () => stopResolve();
+    rec.onerror = () => {
+      if (engine.onFatal) engine.onFatal("録画中にエラーが発生しました。ここまでの内容を保存します。");
+    };
+
+    const releaseStream = () => {
+      try { stream.getTracks().forEach((t) => t.stop()); } catch (e) { /* noop */ }
+    };
+
+    engine.start = () => { rec.start(1000); };
+    engine.addFrame = () => { /* captureStream が自動でフレームを供給 */ };
+    engine.suspend = () => { try { if (rec.state === "recording") rec.pause(); } catch (e) { /* noop */ } };
+    engine.resume = () => { try { if (rec.state === "paused") rec.resume(); } catch (e) { /* noop */ } };
+    engine.bytes = () => totalBytes;
+
+    engine.finish = async () => {
+      if (rec.state !== "inactive") {
+        try { rec.requestData(); } catch (e) { /* noop */ }
+        try { rec.stop(); } catch (e) { stopResolve(); }
+      } else {
+        stopResolve();
+      }
+      try { await withTimeout(stopped, 8000, "stop"); } catch (e) { /* 収集済み分で確定 */ }
+      releaseStream();
+      if (discard || !chunks.length) return null;
+      const type = rec.mimeType || mime || "video/webm";
+      return { blob: new Blob(chunks, { type }), mimeType: type, truncated: false };
+    };
+
+    engine.abort = () => {
+      discard = true;
+      try { if (rec.state !== "inactive") rec.stop(); } catch (e) { /* noop */ }
+      releaseStream();
+      chunks.length = 0;
+      totalBytes = 0;
+    };
+
+    return engine;
+  }
+
+  async function createRecorderEngine() {
+    if (HAS_WEBCODECS) {
+      try {
+        const eng = await createWebCodecsEngine();
+        if (eng) return eng;
+      } catch (e) {
+        console.warn("WebCodecs engine unavailable, falling back to MediaRecorder.", e);
+      }
+    }
+    return createMediaRecorderEngine();
+  }
+
+  // -------------------------------------------------------------------
+  // 8-5. 画面スリープ防止・バックグラウンド対策
+  // -------------------------------------------------------------------
+  async function acquireWakeLock() {
+    try {
+      if (!("wakeLock" in navigator) || wakeLock) return;
+      const lock = await navigator.wakeLock.request("screen");
+      wakeLock = lock;
+      lock.addEventListener("release", () => {
+        if (wakeLock === lock) wakeLock = null;
+      });
+    } catch (e) { /* 非対応・拒否時は無視 */ }
+  }
+
+  function releaseWakeLock() {
+    const lock = wakeLock;
+    wakeLock = null;
+    if (lock) lock.release().catch(() => {});
+  }
+
+  /** 画面が非表示になる間は、録画の時間軸ごと完全に一時停止する */
+  function suspendRecording() {
+    if (!state.recording || suspended) return;
+    suspended = true;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    DOM.videoL.pause();
+    DOM.videoR.pause();
+    if (recorderEngine) recorderEngine.suspend(performance.now());
+  }
+
+  function resumeRecording() {
+    if (!state.recording || !suspended) return;
+    suspended = false;
+    acquireWakeLock();
+    lastTs = null;
+    if (recorderEngine) recorderEngine.resume(performance.now());
+    syncPlaybackState();
+    lastKick = performance.now();
+    rafId = requestAnimationFrame(recordLoop);
+    showToast("画面が切り替わったため録画を一時中断し、再開しました。");
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) suspendRecording();
+    else resumeRecording();
+  });
+
+  DOM.videoL.addEventListener("ended", () => { if (state.recording) state.finishedL = true; });
+  DOM.videoR.addEventListener("ended", () => { if (state.recording) state.finishedR = true; });
+
+  // -------------------------------------------------------------------
+  // 8-6. 録画の開始 / 描画ループ
+  // -------------------------------------------------------------------
+  async function startRecording() {
+    if (state.recording || starting || finalizing) return;
 
     if (!CAN_RECORD) {
       showToast("このブラウザでは録画を開始できません。Chromeをお試しください。", true);
       return;
     }
 
+    starting = true;
     DOM.confirmStartBtn.disabled = true;
+    showToast("録画の準備をしています…");
+
+    let engine = null;
+    try {
+      engine = await createRecorderEngine();
+    } catch (err) {
+      starting = false;
+      DOM.confirmStartBtn.disabled = false;
+      showToast("録画を開始できませんでした: " + (err && err.message ? err.message : err), true);
+      return;
+    }
 
     state.phase = "record";
     state.pauseL = false;
@@ -1165,28 +1724,29 @@
       b.classList.toggle("active", b.dataset.speed === "1.0");
     });
 
-    try {
-      const stream = DOM.canvas.captureStream(CONFIG.RECORDING_FPS);
-      recordedChunks = [];
-      const mimeType = pickMimeType();
-      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+    engine.onFatal = (msg) => {
+      showToast(msg, true);
+      if (state.recording) finishRecording(false);
+    };
 
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) recordedChunks.push(e.data);
-      };
-      mediaRecorder.onstop = onRecorderStop;
-      mediaRecorder.onerror = () => {
-        showToast("録画中にエラーが発生しました。", true);
-        finishRecording(true);
-      };
-      mediaRecorder.start(250);
+    suspended = false;
+    recorderEngine = engine;
+    showPhase("record");
+
+    try {
+      engine.start(performance.now());
     } catch (err) {
+      try { engine.abort(); } catch (e) { /* noop */ }
+      recorderEngine = null;
+      starting = false;
       DOM.confirmStartBtn.disabled = false;
+      showPhase("setup");
+      drawStatic();
       showToast("録画を開始できませんでした: " + (err && err.message ? err.message : err), true);
       return;
     }
 
-    showPhase("record");
+    DOM.toast.classList.remove("show");
 
     DOM.videoL.playbackRate = 1.0;
     DOM.videoR.playbackRate = 1.0;
@@ -1194,11 +1754,16 @@
     DOM.videoR.play().catch(() => {});
 
     state.recording = true;
+    starting = false;
     lastTs = null;
+    lastKick = performance.now();
+    acquireWakeLock();
     rafId = requestAnimationFrame(recordLoop);
   }
 
   function recordLoop(ts) {
+    if (!state.recording || suspended) return;
+
     if (lastTs === null) lastTs = ts;
     const dt = (ts - lastTs) / 1000;
     lastTs = ts;
@@ -1221,10 +1786,26 @@
     drawTimerHalf(0, state.totalElapsed, state.pauseL || state.finishedL);
     drawTimerHalf(CONFIG.HALF_WIDTH, state.totalElapsed, state.pauseR || state.finishedR);
 
+    // 描画し終えたフレームを確実に録画へ渡す
+    if (recorderEngine) recorderEngine.addFrame(ts);
+
     // 両動画が終了した場合は自動停止
     if (state.finishedL && state.finishedR) {
       finishRecording(false);
       return;
+    }
+
+    // 容量上限（端末メモリ保護）
+    if (recorderEngine && recorderEngine.bytes() > CONFIG.MAX_RECORD_BYTES) {
+      showToast("録画データが上限に達したため、ここで保存します。", true);
+      finishRecording(false);
+      return;
+    }
+
+    // OSによる予期しない再生停止を検知して復帰（0.5秒ごと）
+    if (ts - lastKick >= 500) {
+      lastKick = ts;
+      syncPlaybackState();
     }
 
     rafId = requestAnimationFrame(recordLoop);
@@ -1283,36 +1864,66 @@
   });
 
   function finishRecording(discard) {
-    if (!state.recording) return;
+    if (!state.recording || finalizing) return;
     state.recording = false;
+    finalizing = true;
+    suspended = false;
 
-    if (rafId) cancelAnimationFrame(rafId);
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
     DOM.videoL.pause();
     DOM.videoR.pause();
+    releaseWakeLock();
 
-    if (mediaRecorder && mediaRecorder.state !== "inactive") {
-      mediaRecorder._discard = !!discard;
-      mediaRecorder.stop();
-    }
+    const engine = recorderEngine;
+    recorderEngine = null;
+    completeRecording(engine, !!discard);
   }
 
-  function onRecorderStop() {
-    const discard = !!mediaRecorder._discard;
-    DOM.confirmStartBtn.disabled = false;
+  /** エンコーダーを確実にフラッシュし、完全な動画ファイルを確定させる */
+  async function completeRecording(engine, discard) {
+    let result = null;
+    try {
+      if (!engine) {
+        result = null;
+      } else if (discard) {
+        engine.abort();
+      } else {
+        showToast("動画を書き出しています。しばらくお待ちください…");
+        result = await engine.finish(performance.now());
+      }
+    } catch (err) {
+      console.error(err);
+      result = null;
+    } finally {
+      finalizing = false;
+      DOM.confirmStartBtn.disabled = false;
+    }
 
     if (discard) {
-      recordedChunks = [];
       showPhase("setup");
       drawStatic();
       return;
     }
 
+    if (!result || !result.blob || result.blob.size === 0) {
+      showToast("動画の書き出しに失敗しました。もう一度お試しください。", true);
+      showPhase("setup");
+      drawStatic();
+      return;
+    }
+
+    presentResult(result.blob, result.mimeType);
+    if (result.truncated) {
+      showToast("エンコーダーの不具合により、途中までの動画を保存しました。", true);
+    }
+  }
+
+  function presentResult(blob, mimeTypeIn) {
     if (objectUrls.result) {
       URL.revokeObjectURL(objectUrls.result);
     }
 
-    const mimeType = mediaRecorder.mimeType || "video/webm";
-    const blob = new Blob(recordedChunks, { type: mimeType });
+    const mimeType = mimeTypeIn || "video/webm";
     const url = URL.createObjectURL(blob);
     objectUrls.result = url;
 
