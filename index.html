@@ -2,2008 +2,296 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' blob:; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none';">
+  <meta name="referrer" content="no-referrer">
   <meta name="description" content="左右2本の登攀動画を高精度に同期・検証し、比較動画を作成するプロ向けWebツール。">
-  <meta name="theme-color" content="#FFFFFF">
+  <meta name="theme-color" content="#697b43">
   <meta name="color-scheme" content="light">
   <meta name="format-detection" content="telephone=no">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>縦分割してムーブ比較検証動画作成ツール by 武庫</title>
-
-  <style>
-    /* =====================================================================
-       1. デザイントークン & 白基調カラーシステム
-       ===================================================================== */
-    :root {
-      /* ベース背景（清潔感のあるオフホワイト） */
-      --bg-base: #F8FAFC;
-      --bg-surface: #FFFFFF;
-      --bg-surface-elevated: #F1F5F9;
-      --border-subtle: #E2E8F0;
-      --border-strong: #CBD5E1;
-
-      /* テキストカラー（コントラストの高いスレート） */
-      --text-main: #0F172A;
-      --text-muted: #64748B;
-      --text-inverse: #FFFFFF;
-
-      /* 左右トラック識別カラー（白背景で視認性の高い明瞭な色調） */
-      --track-l: #0284C7; /* 左: スカイブルー */
-      --track-l-dim: #E0F2FE;
-      --track-r: #D97706; /* 右: アンバー */
-      --track-r-dim: #FEF3C7;
-
-      /* アクションカラー */
-      --color-primary: #0284C7;
-      --color-primary-hover: #0369A1;
-      --color-danger: #9B2C2C; /* 落ち着いたダークレッド */
-      --color-danger-hover: #792222;
-      --color-alert: #EF4444;
-      --color-warning-bg: #FEF2F2;
-      --color-warning-border: #FCA5A5;
-
-      --radius-sm: 6px;
-      --radius-md: 10px;
-      --radius-lg: 16px;
-
-      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
-      --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.07);
-      --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.1);
-
-      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
-      --font-mono: ui-monospace, SFMono-Regular, Consolas, monospace;
-    }
-
-    /* =====================================================================
-       2. リセット & ベースレイアウト
-       ===================================================================== */
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    html, body {
-      width: 100%;
-      min-height: 100%;
-      background-color: var(--bg-base);
-      color: var(--text-main);
-      font-family: var(--font-sans);
-      line-height: 1.5;
-      -webkit-font-smoothing: antialiased;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
-    }
-
-    body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 16px 12px 36px;
-    }
-
-    .app-shell {
-      width: 100%;
-      max-width: 520px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    /* =====================================================================
-       3. Chrome誘導バナー（他ブラウザ検知時に表示）
-       ===================================================================== */
-    #chromePrompt {
-      display: none;
-      background: #EFF6FF;
-      border: 1px solid #BFDBFE;
-      border-radius: var(--radius-md);
-      padding: 14px 16px;
-      text-align: center;
-      box-shadow: var(--shadow-sm);
-    }
-
-    #chromePrompt p {
-      font-size: 0.8125rem;
-      font-weight: 600;
-      color: #1E40AF;
-      line-height: 1.4;
-    }
-
-    #openInChromeBtn {
-      display: inline-block;
-      margin-top: 8px;
-      padding: 8px 20px;
-      background: #2563EB;
-      color: #FFFFFF;
-      font-size: 0.8125rem;
-      font-weight: 700;
-      border-radius: 20px;
-      text-decoration: none;
-      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
-      transition: background 0.15s;
-    }
-
-    #openInChromeBtn:active {
-      background: #1D4ED8;
-    }
-
-    /* =====================================================================
-       4. ヘッダー & 警告テキスト
-       ===================================================================== */
-    header {
-      padding: 4px 2px;
-    }
-
-    header h1 {
-      font-size: 1.2rem;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      color: var(--text-main);
-    }
-
-    .header-desc {
-      font-size: 0.8125rem;
-      color: var(--text-muted);
-      margin-top: 4px;
-      line-height: 1.6;
-    }
-
-    /* 「Chrome以外では正常に動作しません」の強調表示 */
-    .chrome-warning-badge {
-      display: inline-block;
-      margin-top: 4px;
-      padding: 4px 10px;
-      background-color: var(--color-warning-bg);
-      border: 1px solid var(--color-warning-border);
-      border-radius: var(--radius-sm);
-      color: #B91C1C;
-      font-weight: 700;
-      font-size: 0.8125rem;
-      letter-spacing: 0.02em;
-    }
-
-    /* =====================================================================
-       5. フェーズ画面表示制御
-       ===================================================================== */
-    .phase {
-      display: none;
-      width: 100%;
-      animation: fadeIn 0.18s ease-out;
-    }
-
-    .phase.active {
-      display: block;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(3px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* =====================================================================
-       6. 白基調カード & ファイル入力
-       ===================================================================== */
-    .card {
-      background: var(--bg-surface);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-lg);
-      padding: 20px;
-      box-shadow: var(--shadow-md);
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .file-group {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      padding: 14px;
-      border-radius: var(--radius-md);
-      background: #FFFFFF;
-      border: 1px solid var(--border-subtle);
-      border-left: 5px solid var(--border-strong);
-      box-shadow: var(--shadow-sm);
-      transition: border-color 0.2s;
-    }
-
-    .file-group.side-l { border-left-color: var(--track-l); }
-    .file-group.side-r { border-left-color: var(--track-r); }
-
-    .file-group-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .file-group-title {
-      font-size: 0.875rem;
-      font-weight: 700;
-    }
-
-    .side-l .file-group-title { color: var(--track-l); }
-    .side-r .file-group-title { color: var(--track-r); }
-
-    .file-input {
-      font-size: 0.8125rem;
-      color: var(--text-main);
-      cursor: pointer;
-    }
-
-    .file-input::file-selector-button {
-      padding: 6px 14px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-strong);
-      background: var(--bg-surface-elevated);
-      color: var(--text-main);
-      font-size: 0.75rem;
-      font-weight: 600;
-      cursor: pointer;
-      margin-right: 10px;
-      transition: all 0.15s;
-    }
-
-    .file-input::file-selector-button:hover {
-      background: #E2E8F0;
-    }
-
-    .fps-switch {
-      display: flex;
-      gap: 6px;
-    }
-
-    .fps-btn {
-      flex: 1;
-      padding: 6px 0;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-subtle);
-      background: var(--bg-surface-elevated);
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .side-l .fps-btn.active {
-      border-color: var(--track-l);
-      background: var(--track-l-dim);
-      color: var(--track-l);
-    }
-
-    .side-r .fps-btn.active {
-      border-color: var(--track-r);
-      background: var(--track-r-dim);
-      color: var(--track-r);
-    }
-
-    /* =====================================================================
-       7. プレビューキャンバス（9:16比率）
-       ===================================================================== */
-    #previewWrap {
-      position: relative;
-      width: 100%;
-      border-radius: var(--radius-lg);
-      overflow: hidden;
-      background: #000;
-      border: 1px solid var(--border-subtle);
-      box-shadow: var(--shadow-lg);
-    }
-
-    canvas {
-      width: 100%;
-      height: auto;
-      display: block;
-      aspect-ratio: 9 / 16;
-    }
-
-    .frame-status {
-      display: flex;
-      justify-content: space-between;
-      padding: 8px 14px;
-      font-size: 0.8125rem;
-      font-family: var(--font-mono);
-      font-weight: 600;
-      background: #FFFFFF;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      box-shadow: var(--shadow-sm);
-      margin-bottom: 8px;
-    }
-
-    .frame-status .l-stat { color: var(--track-l); }
-    .frame-status .r-stat { color: var(--track-r); }
-
-    /* =====================================================================
-       8. コントロールグリッド & ボタン体系
-       ===================================================================== */
-    .controls-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 12px;
-    }
-
-    .ctrl-column {
-      padding: 12px;
-      border-radius: var(--radius-md);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      border: 1px solid transparent;
-    }
-
-    .ctrl-column.side-l {
-      background: var(--track-l-dim);
-      border-color: rgba(2, 132, 199, 0.2);
-    }
-
-    .ctrl-column.side-r {
-      background: var(--track-r-dim);
-      border-color: rgba(217, 119, 6, 0.2);
-    }
-
-    .ctrl-column-header {
-      font-size: 0.75rem;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-
-    .ctrl-column.side-l .ctrl-column-header { color: var(--track-l); }
-    .ctrl-column.side-r .ctrl-column-header { color: var(--track-r); }
-
-    .btn-row {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 4px;
-    }
-
-    .btn-row-dual {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-    }
-
-    button {
-      font-family: inherit;
-      touch-action: manipulation;
-    }
-
-    .step-btn {
-      min-height: 40px;
-      border-radius: var(--radius-sm);
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      background: #FFFFFF;
-      color: var(--text-main);
-      font-size: 0.8125rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-      transition: all 0.1s;
-    }
-
-    .step-btn:active {
-      background: #F1F5F9;
-      transform: scale(0.97);
-    }
-
-    .btn {
-      width: 100%;
-      min-height: 48px;
-      padding: 10px 16px;
-      border-radius: var(--radius-md);
-      border: none;
-      font-size: 0.9375rem;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      transition: all 0.15s;
-      text-decoration: none;
-    }
-
-    .btn-primary {
-      background: var(--color-primary);
-      color: #FFFFFF;
-      box-shadow: 0 2px 6px rgba(2, 132, 199, 0.3);
-    }
-
-    .btn-primary:hover:not(:disabled) {
-      background: var(--color-primary-hover);
-    }
-
-    .btn-secondary {
-      background: #FFFFFF;
-      color: var(--text-main);
-      border: 1px solid var(--border-strong);
-      box-shadow: var(--shadow-sm);
-    }
-
-    .btn-secondary:hover:not(:disabled) {
-      background: var(--bg-surface-elevated);
-    }
-
-    .btn-danger {
-      background: var(--color-danger);
-      color: #FFFFFF;
-      box-shadow: 0 2px 6px rgba(155, 44, 44, 0.25);
-    }
-
-    .btn-danger:hover:not(:disabled) {
-      background: var(--color-danger-hover);
-    }
-
-    .btn-toggle {
-      background: #FFFFFF;
-      color: var(--text-main);
-      border: 1px solid var(--border-strong);
-      box-shadow: var(--shadow-sm);
-    }
-
-    .btn-toggle.active {
-      background: var(--color-alert);
-      border-color: var(--color-alert);
-      color: #FFFFFF;
-    }
-
-    .btn:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-      transform: none !important;
-      box-shadow: none;
-    }
-
-    .speed-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
-      margin-bottom: 8px;
-    }
-
-    .speed-btn {
-      min-height: 38px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border-subtle);
-      background: #FFFFFF;
-      color: var(--text-muted);
-      font-size: 0.8125rem;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: var(--shadow-sm);
-      transition: all 0.15s;
-    }
-
-    .speed-btn.active {
-      border-color: var(--color-primary);
-      background: var(--track-l-dim);
-      color: var(--color-primary);
-    }
-
-    .rec-indicator {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 0.8125rem;
-      font-weight: 700;
-      color: var(--color-alert);
-      margin-bottom: 6px;
-    }
-
-    .rec-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: var(--color-alert);
-      box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
-      animation: pulse 1.2s infinite ease-in-out;
-    }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.3; transform: scale(0.8); }
-    }
-
-    /* =====================================================================
-       9. トースト通知 & フッター免責事項
-       ===================================================================== */
-    #toast {
-      position: fixed;
-      bottom: 24px;
-      left: 50%;
-      transform: translateX(-50%) translateY(100px);
-      background: #1E293B;
-      color: #FFFFFF;
-      padding: 12px 20px;
-      border-radius: var(--radius-md);
-      font-size: 0.875rem;
-      font-weight: 500;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-      border: 1px solid #334155;
-      z-index: 9999;
-      opacity: 0;
-      pointer-events: none;
-      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s;
-      max-width: 90vw;
-      text-align: center;
-    }
-
-    #toast.show {
-      transform: translateX(-50%) translateY(0);
-      opacity: 1;
-    }
-
-    #toast.error {
-      border-color: #F87171;
-      background: #7F1D1D;
-      color: #FEE2E2;
-    }
-
-    .disclaimer-box {
-      font-size: 0.6875rem;
-      color: var(--text-muted);
-      line-height: 1.6;
-      text-align: center;
-      padding: 8px 4px 16px;
-    }
-
-    /* 動画デコード用（表示は消しつつDOM上に配置） */
-    video.srcvid {
-      display: none;
-    }
-  </style>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
 
 <noscript>
-  <div class="card" style="border-color:var(--color-alert); margin-top:20px;">
-    <strong>JavaScriptが無効です</strong>
-    <p style="font-size:0.875rem; margin-top:6px;">本ツールの動作にはJavaScriptの有効化が必須です。ブラウザ設定を確認してください。</p>
+  <div class="frame-blocked">
+    JavaScriptが無効です。本ツールの動作にはJavaScriptの有効化が必須です。ブラウザ設定を確認してください。
   </div>
 </noscript>
 
-<!-- 通知トースト -->
-<div id="toast" role="status" aria-live="polite"></div>
+<!-- クリックジャッキング検知時のブロック表示 -->
+<div id="frameBlocked" class="frame-blocked" hidden>
+  セキュリティ保護のため、埋め込みフレーム内での実行はブロックされました。直接ページを開いてください。
+</div>
 
-<div class="app-shell">
-  <!-- Chrome誘導バナー（他ブラウザ時に自動表示） -->
-  <div id="chromePrompt">
-    <p>このツールは <strong>Google Chrome</strong> で最も安定して動作します。</p>
-    <a id="openInChromeBtn" href="#">Chromeで開き直す</a>
-  </div>
-
+<div id="appRoot" class="app">
   <header>
-    <h1>縦分割してムーブ比較検証動画作成ツール by 武庫</h1>
-    <div class="header-desc">
-      左右2本の登攀動画をフレーム単位で同期・検証し、比較動画を作成します。<br>
-      <span class="chrome-warning-badge">※Google Chrome 以外では正常に動作しません</span>
+    <div class="brand">
+      <div class="mark" aria-hidden="true">武</div>
+      <div>
+        <h1>縦分割してムーブ比較検証動画作成ツール by 武庫</h1>
+        <p>左右2本の登攀動画をフレーム単位で同期・検証し、比較動画を作成します。</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <a id="openInChromeBtn" href="#" hidden>
+        <button type="button" class="secondary">Chromeで開き直す</button>
+      </a>
+      <button type="button" id="headerResetBtn" class="subtle" hidden>最初からやり直す</button>
     </div>
   </header>
 
-  <!-- =====================================================================
-       Phase 1: 動画ファイル選択
-       ===================================================================== -->
-  <section id="phase-select" class="phase active">
-    <div class="card">
-      <!-- 左側動画スロット -->
-      <div class="file-group side-l">
-        <div class="file-group-header">
-          <span class="file-group-title">左側動画 (L)</span>
-          <div class="fps-switch" data-side="L">
-            <button class="fps-btn active" data-fps="30">30fps</button>
-            <button class="fps-btn" data-fps="60">60fps</button>
-          </div>
-        </div>
-        <input type="file" id="fileL" class="file-input" accept="video/*">
-      </div>
+  <!-- 進行ステップ表示 -->
+  <nav class="steps" aria-label="進行ステップ">
+    <span id="stepBadge1" class="step">1. 動画選択</span>
+    <span id="stepBadge2" class="step" hidden>2. 開始位置・画角調整</span>
+    <span id="stepBadge3" class="step" hidden>3. 同期録画</span>
+    <span id="stepBadge4" class="step" hidden>4. 保存・共有</span>
+  </nav>
 
-      <!-- 右側動画スロット -->
-      <div class="file-group side-r">
-        <div class="file-group-header">
-          <span class="file-group-title">右側動画 (R)</span>
-          <div class="fps-switch" data-side="R">
-            <button class="fps-btn active" data-fps="30">30fps</button>
-            <button class="fps-btn" data-fps="60">60fps</button>
-          </div>
-        </div>
-        <input type="file" id="fileR" class="file-input" accept="video/*">
-      </div>
-
-      <p style="font-size:0.75rem; color:var(--text-muted); line-height:1.4;">
-        ※撮影時のフレームレートに合わせることで、1コマ送りの同期精度が完全になります。
-      </p>
-
-      <button id="toSetupBtn" class="btn btn-primary" disabled>
-        開始位置の調整へ進む
-      </button>
-    </div>
-  </section>
-
-  <!-- =====================================================================
-       共通プレビューキャンバス（Phase 2, 3 で表示）
-       ===================================================================== -->
-  <div id="previewWrap" style="display:none;">
-    <canvas id="mainCanvas" width="720" height="1280"></canvas>
+  <!-- ステータス・通知バー -->
+  <div id="statusBar" class="status" role="status" aria-live="polite">
+    左右それぞれの動画ファイルを選択してください（※Google Chrome 推奨）。
   </div>
 
-  <!-- =====================================================================
-       Phase 2: 開始フレーム同期・画角調整
-       ===================================================================== -->
-  <section id="phase-setup" class="phase">
-    <div class="frame-status">
-      <span id="fcL" class="l-stat">左: 0f</span>
-      <span id="fcR" class="r-stat">右: 0f</span>
-    </div>
-
-    <div class="controls-grid">
-      <!-- 左側コントロール -->
-      <div class="ctrl-column side-l">
-        <span class="ctrl-column-header">左コマ送り</span>
-        <div class="btn-row">
-          <button class="step-btn" data-side="L" data-frames="-10">-10</button>
-          <button class="step-btn" data-side="L" data-frames="-1">-1</button>
-          <button class="step-btn" data-side="L" data-frames="1">+1</button>
-          <button class="step-btn" data-side="L" data-frames="10">+10</button>
-        </div>
-        <div class="btn-row-dual">
-          <button class="step-btn" data-side="L" data-offset="-15">◀ 位置</button>
-          <button class="step-btn" data-side="L" data-offset="15">位置 ▶</button>
+  <main class="layout">
+    <!-- =================================================================
+         左カラム：プレビューキャンバス & 出力結果プレビュー
+         ================================================================= -->
+    <section class="panel" aria-label="プレビュー領域">
+      <div class="panel-head">
+        <h2 id="previewTitle">比較プレビュー (9:16)</h2>
+        <div class="button-row">
+          <span id="fcL" class="badge">左: 0f (0.00s)</span>
+          <span id="fcR" class="badge">右: 0f (0.00s)</span>
         </div>
       </div>
 
-      <!-- 右側コントロール -->
-      <div class="ctrl-column side-r">
-        <span class="ctrl-column-header">右コマ送り</span>
-        <div class="btn-row">
-          <button class="step-btn" data-side="R" data-frames="-10">-10</button>
-          <button class="step-btn" data-side="R" data-frames="-1">-1</button>
-          <button class="step-btn" data-side="R" data-frames="1">+1</button>
-          <button class="step-btn" data-side="R" data-frames="10">+10</button>
+      <div class="preview" id="previewContainer">
+        <div id="emptyState" class="empty">
+          <strong>動画が読み込まれていません</strong>
+          <span>右（スマホでは下）のパネルから左右2本の登攀動画を選択すると、ここに縦分割プレビューが表示されます。</span>
         </div>
-        <div class="btn-row-dual">
-          <button class="step-btn" data-side="R" data-offset="-15">◀ 位置</button>
-          <button class="step-btn" data-side="R" data-offset="15">位置 ▶</button>
-        </div>
+        <canvas id="mainCanvas" width="720" height="1280" tabindex="0" aria-label="左右比較プレビューキャンバス（ドラッグで左右の表示位置を調整可能）" hidden></canvas>
+        <video id="resultVideo" controls playsinline preload="metadata" hidden></video>
       </div>
-    </div>
 
-    <div style="display:flex; flex-direction:column; gap:8px;">
-      <button id="resetOffsetBtn" class="btn btn-secondary">左右位置を中央にリセット</button>
-      <button id="confirmStartBtn" class="btn btn-primary">✓ この位置で開始・録画スタート</button>
-      <button id="backToSelectBtn" class="btn btn-danger">動画を選び直す</button>
-    </div>
-  </section>
-
-  <!-- =====================================================================
-       Phase 3: 同期プレビュー & 録画
-       ===================================================================== -->
-  <section id="phase-record" class="phase">
-    <div class="rec-indicator">
-      <span class="rec-dot"></span>
-      <span>同期比較録画中</span>
-    </div>
-
-    <div class="controls-grid">
-      <div class="ctrl-column side-l">
-        <button id="pauseLBtn" class="btn btn-toggle">左を一時停止 [HOLD]</button>
-        <div class="btn-row-dual" style="margin-top:6px;">
-          <button class="step-btn" data-side="L" data-offset="-15">◀ 位置</button>
-          <button class="step-btn" data-side="L" data-offset="15">位置 ▶</button>
-        </div>
-      </div>
-      <div class="ctrl-column side-r">
-        <button id="pauseRBtn" class="btn btn-toggle">右を一時停止 [HOLD]</button>
-        <div class="btn-row-dual" style="margin-top:6px;">
-          <button class="step-btn" data-side="R" data-offset="-15">◀ 位置</button>
-          <button class="step-btn" data-side="R" data-offset="15">位置 ▶</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="speed-grid">
-      <button class="speed-btn" data-speed="0.25">0.25x</button>
-      <button class="speed-btn" data-speed="0.5">0.5x</button>
-      <button class="speed-btn" data-speed="0.75">0.75x</button>
-      <button class="speed-btn active" data-speed="1.0">1.0x</button>
-    </div>
-
-    <div style="display:flex; flex-direction:column; gap:8px;">
-      <button id="pauseAllBtn" class="btn btn-secondary">⏸ 全体を一時停止</button>
-      <button id="saveEndBtn" class="btn btn-primary">💾 保存して終了</button>
-      <button id="discardBtn" class="btn btn-danger">破棄して中断</button>
-    </div>
-  </section>
-
-  <!-- =====================================================================
-       Phase 4: 出力結果・完了画面
-       ===================================================================== -->
-  <section id="phase-result" class="phase">
-    <div class="card">
-      <h2 style="font-size:1.125rem; font-weight:700;">比較動画の作成が完了しました</h2>
-      <video id="resultVideo" controls playsinline style="width:100%; border-radius:var(--radius-md); background:#000;"></video>
-      
-      <div style="display:flex; flex-direction:column; gap:8px;">
-        <a id="downloadLink" class="btn btn-primary" download="syncedmovie.webm">端末に保存する</a>
-        <button id="shareBtn" class="btn btn-secondary">仲間に共有する</button>
-        <button id="restartBtn" class="btn btn-danger">もう一度作る</button>
-      </div>
-      <p style="font-size:0.75rem; color:var(--text-muted); text-align:center;">
-        ※保存形式は WebM（またはMP4）です。スマホの写真アプリ・Googleフォト・PC等で問題なく再生できます。
+      <p id="canvasHint" class="hint">
+        ※プレビュー画面の左半分・右半分を直接指やマウスで左右にドラッグしても表示位置を調整できます。
       </p>
-    </div>
-  </section>
+    </section>
 
-  <!-- 著作権・免責事項 -->
-  <footer class="disclaimer-box">
-    本ソフトウェアの著作権は制作者に帰属します。<br>
-    本ソフトウェアの使用によって生じたいかなる損害についても、制作者は一切の責任を負いません。<br>
+    <!-- =================================================================
+         右カラム：各フェーズの操作コントロールパネル
+         ================================================================= -->
+    <section class="panel" aria-label="操作パネル">
+
+      <!-- Phase 1: 動画ファイル選択 -->
+      <div id="phase-select" class="controls">
+        <div class="panel-head">
+          <h2>1. 動画ファイルの選択</h2>
+          <span class="badge">Chrome推奨</span>
+        </div>
+
+        <!-- 左側動画 -->
+        <div class="field">
+          <div class="field-header">
+            <span class="field-title">左側動画 (L)</span>
+            <span id="fpsLabelL" class="badge">30fps</span>
+          </div>
+          <label class="file-zone" id="dropZoneL">
+            <span id="fileNameL">クリックまたはドロップして左動画を選択</span>
+            <small>MP4 / WebM / MOV 等の動画ファイル</small>
+            <input type="file" id="fileL" accept="video/*">
+          </label>
+          <div class="button-row" data-fps-group="L" role="group" aria-label="左動画のフレームレート">
+            <button type="button" class="secondary" data-fps="30" aria-pressed="true">30 fps</button>
+            <button type="button" data-fps="60" aria-pressed="false">60 fps</button>
+          </div>
+        </div>
+
+        <!-- 右側動画 -->
+        <div class="field">
+          <div class="field-header">
+            <span class="field-title">右側動画 (R)</span>
+            <span id="fpsLabelR" class="badge">30fps</span>
+          </div>
+          <label class="file-zone" id="dropZoneR">
+            <span id="fileNameR">クリックまたはドロップして右動画を選択</span>
+            <small>MP4 / WebM / MOV 等の動画ファイル</small>
+            <input type="file" id="fileR" accept="video/*">
+          </label>
+          <div class="button-row" data-fps-group="R" role="group" aria-label="右動画のフレームレート">
+            <button type="button" class="secondary" data-fps="30" aria-pressed="true">30 fps</button>
+            <button type="button" data-fps="60" aria-pressed="false">60 fps</button>
+          </div>
+        </div>
+
+        <small class="meta">
+          ※撮影時のフレームレートに合わせることで、1コマ送りの同期精度が完全になります。
+        </small>
+
+        <div class="action-stack">
+          <button type="button" id="toSetupBtn" class="primary" disabled>
+            開始位置の調整へ進む
+          </button>
+        </div>
+      </div>
+
+      <!-- Phase 2: 開始フレーム同期・画角調整 -->
+      <div id="phase-setup" class="controls" hidden>
+        <div class="panel-head">
+          <h2>2. 開始フレーム・位置調整</h2>
+          <span class="badge">コマ送り同期</span>
+        </div>
+
+        <!-- 左側調整 -->
+        <div class="field">
+          <div class="field-header">
+            <span class="field-title">左側動画 (L) コマ送り・横位置</span>
+          </div>
+          <div class="button-row">
+            <button type="button" data-side="L" data-frames="-10">-10コマ</button>
+            <button type="button" data-side="L" data-frames="-1">-1コマ</button>
+            <button type="button" data-side="L" data-frames="1">+1コマ</button>
+            <button type="button" data-side="L" data-frames="10">+10コマ</button>
+          </div>
+          <div class="button-row">
+            <button type="button" data-side="L" data-offset="-15">◀ 左へ寄せる</button>
+            <button type="button" data-side="L" data-offset="15">右へ寄せる ▶</button>
+          </div>
+        </div>
+
+        <!-- 右側調整 -->
+        <div class="field">
+          <div class="field-header">
+            <span class="field-title">右側動画 (R) コマ送り・横位置</span>
+          </div>
+          <div class="button-row">
+            <button type="button" data-side="R" data-frames="-10">-10コマ</button>
+            <button type="button" data-side="R" data-frames="-1">-1コマ</button>
+            <button type="button" data-side="R" data-frames="1">+1コマ</button>
+            <button type="button" data-side="R" data-frames="10">+10コマ</button>
+          </div>
+          <div class="button-row">
+            <button type="button" data-side="R" data-offset="-15">◀ 左へ寄せる</button>
+            <button type="button" data-side="R" data-offset="15">右へ寄せる ▶</button>
+          </div>
+        </div>
+
+        <div class="action-stack">
+          <button type="button" id="resetOffsetBtn" class="subtle">左右の横位置を中央にリセット</button>
+          <button type="button" id="confirmStartBtn" class="primary">✓ この位置で開始・録画スタート</button>
+          <button type="button" id="backToSelectBtn">動画を選び直す</button>
+        </div>
+
+        <div class="privacy">
+          <strong>PCショートカット:</strong><br>
+          左コマ送り [W / S]・右コマ送り [I / K]（Shift併用で10コマ）<br>
+          左横位置 [Z / C]・右横位置 [, / .]・位置リセット [R]・録画開始 [Enter]
+        </div>
+      </div>
+
+      <!-- Phase 3: 同期プレビュー & 録画 -->
+      <div id="phase-record" class="controls" hidden>
+        <div class="panel-head">
+          <h2>3. 同期比較録画中</h2>
+          <span class="badge">● REC</span>
+        </div>
+
+        <!-- 左側ホールド・位置 -->
+        <div class="field">
+          <div class="field-header">
+            <span class="field-title">左側動画 (L) 操作</span>
+          </div>
+          <button type="button" id="pauseLBtn">左を一時停止 [HOLD]</button>
+          <div class="button-row">
+            <button type="button" data-side="L" data-offset="-15">◀ 左位置</button>
+            <button type="button" data-side="L" data-offset="15">左位置 ▶</button>
+          </div>
+        </div>
+
+        <!-- 右側ホールド・位置 -->
+        <div class="field">
+          <div class="field-header">
+            <span class="field-title">右側動画 (R) 操作</span>
+          </div>
+          <button type="button" id="pauseRBtn">右を一時停止 [HOLD]</button>
+          <div class="button-row">
+            <button type="button" data-side="R" data-offset="-15">◀ 右位置</button>
+            <button type="button" data-side="R" data-offset="15">右位置 ▶</button>
+          </div>
+        </div>
+
+        <!-- 再生速度 -->
+        <div class="field">
+          <div class="field-header">
+            <span class="field-title">再生・録画スピード</span>
+            <span id="speedBadge" class="badge">1.0x</span>
+          </div>
+          <div class="button-row" id="speedGroup" role="group" aria-label="再生速度">
+            <button type="button" data-speed="0.25">0.25x</button>
+            <button type="button" data-speed="0.5">0.5x</button>
+            <button type="button" data-speed="0.75">0.75x</button>
+            <button type="button" class="secondary" data-speed="1.0">1.0x</button>
+          </div>
+        </div>
+
+        <div class="action-stack">
+          <button type="button" id="pauseAllBtn">⏸ 全体を一時停止</button>
+          <button type="button" id="saveEndBtn" class="primary">💾 保存して終了</button>
+          <button type="button" id="discardBtn" class="subtle">破棄して調整に戻る</button>
+        </div>
+
+        <div class="privacy">
+          <strong>PCショートカット:</strong><br>
+          全体一時停止 [Space]・左停止 [A]・右停止 [L]・保存して終了 [Q]・破棄 [Esc]
+        </div>
+      </div>
+
+      <!-- Phase 4: 出力結果・完了画面 -->
+      <div id="phase-result" class="controls" hidden>
+        <div class="panel-head">
+          <h2>4. 比較動画の作成完了</h2>
+          <span id="outputFormatBadge" class="badge">MP4 / WebM</span>
+        </div>
+
+        <p class="meta">
+          プレビュー枠内で完成した比較動画を再生確認できます。端末への保存や仲間への共有を行ってください。
+        </p>
+
+        <div class="action-stack">
+          <button type="button" id="downloadBtn" class="primary">端末に保存する</button>
+          <button type="button" id="shareBtn" class="secondary">仲間に共有する</button>
+          <button type="button" id="backToSetupFromResultBtn">同じ動画で位置調整からやり直す</button>
+          <button type="button" id="restartBtn" class="subtle">別の動画を選び直す</button>
+        </div>
+
+        <div class="privacy">
+          ※動画処理はすべてお使いの端末（ブラウザ内）で完結しており、外部サーバーへ動画が送信されることは一切ありません。
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <footer class="footer">
+    本ソフトウェアの著作権は制作者に帰属します。本ソフトウェアの使用によって生じたいかなる損害についても、制作者は一切の責任を負いません。<br>
     &copy; 2026 武庫 All Rights Reserved.
   </footer>
 </div>
 
-<!-- =====================================================================
-     動画デコード用エレメント（実証済みの確実な読み込み構成）
-     ===================================================================== -->
-<video class="srcvid" id="videoL" muted playsinline preload="auto"></video>
-<video class="srcvid" id="videoR" muted playsinline preload="auto"></video>
-
-<!-- =====================================================================
-     コアエンジン スクリプト
-     ===================================================================== -->
-<script>
-/**
- * @file SyncClimb Core Engine
- * @description 登攀動画の同期、フレーム単位のシーク、クロップ描画、録画を統括するスクリプト。
- * @author 武庫
- * @license Proprietary
- */
-(function () {
-  "use strict";
-
-  // ===================================================================
-  // 1. 定数定義
-  // ===================================================================
-  const CONFIG = {
-    OUT_WIDTH: 720,
-    OUT_HEIGHT: 1280,
-    HALF_WIDTH: 360,
-    RECORDING_FPS: 30,
-    DEFAULT_SHIFT_STEP: 15,
-    VIDEO_BITRATE: 6000000,                 // 録画ビットレート (bps)
-    KEYFRAME_INTERVAL_FRAMES: 60,           // キーフレーム間隔（約2秒）
-    MAX_ENCODE_QUEUE: 8,                    // エンコード待ちフレーム上限
-    MAX_RECORD_BYTES: 900 * 1024 * 1024,    // 録画データ容量の安全上限
-  };
-
-  // ===================================================================
-  // 2. DOM要素参照キャッシュ
-  // ===================================================================
-  const DOM = {
-    videoL: document.getElementById("videoL"),
-    videoR: document.getElementById("videoR"),
-    fileL: document.getElementById("fileL"),
-    fileR: document.getElementById("fileR"),
-    toSetupBtn: document.getElementById("toSetupBtn"),
-    previewWrap: document.getElementById("previewWrap"),
-    canvas: document.getElementById("mainCanvas"),
-    fcL: document.getElementById("fcL"),
-    fcR: document.getElementById("fcR"),
-    resetOffsetBtn: document.getElementById("resetOffsetBtn"),
-    confirmStartBtn: document.getElementById("confirmStartBtn"),
-    backToSelectBtn: document.getElementById("backToSelectBtn"),
-    pauseLBtn: document.getElementById("pauseLBtn"),
-    pauseRBtn: document.getElementById("pauseRBtn"),
-    pauseAllBtn: document.getElementById("pauseAllBtn"),
-    saveEndBtn: document.getElementById("saveEndBtn"),
-    discardBtn: document.getElementById("discardBtn"),
-    resultVideo: document.getElementById("resultVideo"),
-    downloadLink: document.getElementById("downloadLink"),
-    shareBtn: document.getElementById("shareBtn"),
-    restartBtn: document.getElementById("restartBtn"),
-    toast: document.getElementById("toast"),
-    chromePrompt: document.getElementById("chromePrompt"),
-    openInChromeBtn: document.getElementById("openInChromeBtn"),
-  };
-
-  const ctx = DOM.canvas.getContext("2d", { alpha: false });
-
-  // ===================================================================
-  // 3. アプリケーション状態 (State)
-  // ===================================================================
-  const state = {
-    phase: "select",
-    fpsL: 30,
-    fpsR: 30,
-    offsetL: 0,
-    offsetR: 0,
-    pauseL: false,
-    pauseR: false,
-    pauseAll: false,
-    finishedL: false,
-    finishedR: false,
-    speed: 1.0,
-    totalElapsed: 0.0,
-    recording: false,
-  };
-
-  let recorderEngine = null;
-  let starting = false;
-  let finalizing = false;
-  let suspended = false;
-  let wakeLock = null;
-  let lastKick = 0;
-  let rafId = null;
-  let lastTs = null;
-  let toastTimer = null;
-
-  /** オブジェクトURL管理（メモリリーク防止） */
-  const objectUrls = { L: null, R: null, result: null };
-
-  // ===================================================================
-  // 4. Chrome ブラウザ判定 & 誘導処理
-  // ===================================================================
-  (function initBrowserCheck() {
-    const ua = navigator.userAgent.toLowerCase();
-    const isIOS = /iphone|ipad|ipod/.test(ua);
-    const isAndroid = /android/.test(ua);
-    // iOS上のChromeは 'crios'、それ以外は 'chrome' かつ他社ブラウザでないこと
-    const isChrome = /crios/.test(ua) || (/chrome/.test(ua) && !/edge|edg|opr|opera|line/.test(ua));
-
-    // スマホ環境でChrome以外（SafariやLINE内蔵ブラウザ等）の場合にバナー表示
-    if ((isIOS || isAndroid) && !isChrome) {
-      DOM.chromePrompt.style.display = "block";
-      if (isIOS) {
-        // iOS版Chromeを開くURLスキーム
-        DOM.openInChromeBtn.href = "googlechrome://koriba1106.github.io/syncmovie/index.html";
-      } else if (isAndroid) {
-        // Android版Chromeを開くIntent
-        DOM.openInChromeBtn.href = "intent://koriba1106.github.io/syncmovie/index.html#Intent;scheme=https;package=com.android.chrome;end";
-      }
-    }
-  })();
-
-  // ===================================================================
-  // 5. ユーティリティ
-  // ===================================================================
-
-  /**
-   * 通知トーストの表示
-   * @param {string} message - メッセージ内容
-   * @param {boolean} [isError=false] - エラー表示スタイル
-   */
-  function showToast(message, isError = false) {
-    DOM.toast.textContent = message;
-    DOM.toast.classList.toggle("error", isError);
-    DOM.toast.classList.add("show");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => {
-      DOM.toast.classList.remove("show");
-    }, 4000);
-  }
-
-  const pad2 = (n) => String(n).padStart(2, "0");
-  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
-
-  /**
-   * フェーズ切り替え
-   * @param {string} phaseId - 'select' | 'setup' | 'record' | 'result'
-   */
-  function showPhase(phaseId) {
-    state.phase = phaseId;
-    document.querySelectorAll(".phase").forEach((el) => el.classList.remove("active"));
-    const target = document.getElementById(`phase-${phaseId}`);
-    if (target) target.classList.add("active");
-
-    DOM.previewWrap.style.display =
-      phaseId === "setup" || phaseId === "record" ? "block" : "none";
-  }
-
-  // 録画機能サポート確認
-  const HAS_WEBCODECS =
-    typeof window.VideoEncoder === "function" &&
-    typeof window.VideoFrame === "function";
-  const HAS_MEDIARECORDER =
-    typeof window.MediaRecorder === "function" &&
-    typeof HTMLCanvasElement.prototype.captureStream === "function";
-  const CAN_RECORD = HAS_WEBCODECS || HAS_MEDIARECORDER;
-
-  if (!CAN_RECORD) {
-    showToast("このブラウザは録画APIに対応していません。Chromeをご利用ください。", true);
-  }
-
-  // 録画中の離脱防止
-  window.addEventListener("beforeunload", (e) => {
-    if (state.recording) {
-      e.preventDefault();
-      e.returnValue = "";
-    }
-  });
-
-  // ===================================================================
-  // 6. 動画読み込みパイプライン（実証済み安定型）
-  // ===================================================================
-
-  /**
-   * input要素とvideo要素をバインド
-   * 余計なPromiseや空src初期化を行わず、直接オブジェクトURLを代入することで
-   * モバイルChromiumの空ソース誤検知（Error Code 4）を完全に回避する
-   */
-  function bindFile(input, video, sideKey) {
-    input.addEventListener("change", () => {
-      const f = input.files[0];
-      if (!f) return;
-
-      // 前回のURLがあればメモリ解放
-      if (objectUrls[sideKey]) {
-        URL.revokeObjectURL(objectUrls[sideKey]);
-      }
-
-      const url = URL.createObjectURL(f);
-      objectUrls[sideKey] = url;
-      video.src = url;
-
-      // メタデータ取得完了時に先頭フレーム（0秒）へ合わせる
-      video.addEventListener(
-        "loadedmetadata",
-        function onMeta() {
-          video.currentTime = 0;
-        },
-        { once: true }
-      );
-
-      checkReady();
-    });
-
-    video.addEventListener("error", () => {
-      showToast(`${sideKey === "L" ? "左側" : "右側"}の動画を読み込めませんでした。別のファイルをお試しください。`, true);
-      DOM.toSetupBtn.disabled = true;
-    });
-  }
-
-  bindFile(DOM.fileL, DOM.videoL, "L");
-  bindFile(DOM.fileR, DOM.videoR, "R");
-
-  // FPS 切り替え
-  document.querySelectorAll(".fps-switch").forEach((group) => {
-    const side = group.dataset.side;
-    group.querySelectorAll(".fps-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        group.querySelectorAll(".fps-btn").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        const fps = Number(btn.dataset.fps);
-        if (side === "L") state.fpsL = fps;
-        else state.fpsR = fps;
-        if (state.phase === "setup") drawStatic();
-      });
-    });
-  });
-
-  /** 両動画の準備状態を確認 */
-  function checkReady() {
-    const ready = DOM.videoL.readyState >= 1 && DOM.videoR.readyState >= 1;
-    DOM.toSetupBtn.disabled = !ready;
-  }
-
-  DOM.videoL.addEventListener("loadeddata", checkReady);
-  DOM.videoR.addEventListener("loadeddata", checkReady);
-
-  DOM.toSetupBtn.addEventListener("click", () => {
-    showPhase("setup");
-    drawStatic();
-  });
-
-  DOM.backToSelectBtn.addEventListener("click", () => {
-    showPhase("select");
-  });
-
-  // ===================================================================
-  // 7. 描画・クロップ演算・タイマーHUD
-  // ===================================================================
-
-  /**
-   * 元動画から9:32の縦長領域を切り出し、キャンバスの左右半分（360x1280）に描画
-   */
-  function drawHalf(video, destX, offsetPx) {
-    if (!video || !video.videoWidth) {
-      ctx.fillStyle = "#000";
-      ctx.fillRect(destX, 0, CONFIG.HALF_WIDTH, CONFIG.OUT_HEIGHT);
-      return;
-    }
-
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    const scale = CONFIG.OUT_HEIGHT / vh;
-    const srcHalfW = CONFIG.HALF_WIDTH / scale;
-
-    const srcCenter = vw / 2 + offsetPx / scale;
-    let sx = srcCenter - srcHalfW / 2;
-    let sx2 = sx + srcHalfW;
-
-    if (sx < 0) {
-      sx = 0;
-      sx2 = Math.min(srcHalfW, vw);
-    } else if (sx2 > vw) {
-      sx2 = vw;
-      sx = Math.max(0, sx2 - srcHalfW);
-    }
-
-    const sw = Math.max(1, sx2 - sx);
-    ctx.drawImage(video, sx, 0, sw, vh, destX, 0, CONFIG.HALF_WIDTH, CONFIG.OUT_HEIGHT);
-  }
-
-  /**
-   * 高視認性タイマーオーバーレイを描画
-   */
-  function drawTimerHalf(destX, elapsedSec, paused) {
-    const e = Math.max(0, elapsedSec);
-    const m = Math.floor(e / 60);
-    const s = Math.floor(e % 60);
-    const cs = Math.floor((e * 100) % 100);
-    let text = `${pad2(m)}:${pad2(s)}.${pad2(cs)}`;
-    if (paused) text += " [停止]";
-
-    ctx.save();
-    ctx.font = '700 28px ui-monospace, SFMono-Regular, Consolas, monospace';
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    const tw = ctx.measureText(text).width;
-    const th = 38;
-    const padX = 14;
-    const boxW = tw + padX * 2;
-    const cx = destX + CONFIG.HALF_WIDTH / 2;
-    const cy = CONFIG.OUT_HEIGHT - 90;
-
-    // 半透明プレート（通常時はダークグレー、停止時はレッド）
-    ctx.fillStyle = paused ? "rgba(180, 20, 20, 0.85)" : "rgba(10, 12, 16, 0.72)";
-    ctx.beginPath();
-    ctx.roundRect(cx - boxW / 2, cy - th / 2, boxW, th, 8);
-    ctx.fill();
-
-    ctx.strokeStyle = paused ? "rgba(255, 120, 120, 0.5)" : "rgba(255, 255, 255, 0.15)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = paused ? "#FFE4E4" : "#FFFFFF";
-    ctx.fillText(text, cx, cy);
-    ctx.restore();
-  }
-
-  /** 静止同期プレビューを描画（位置調整フェーズ用） */
-  function drawStatic() {
-    ctx.clearRect(0, 0, CONFIG.OUT_WIDTH, CONFIG.OUT_HEIGHT);
-    drawHalf(DOM.videoL, 0, state.offsetL);
-    drawHalf(DOM.videoR, CONFIG.HALF_WIDTH, state.offsetR);
-
-    // 中央分割線
-    ctx.fillStyle = "#FFF";
-    ctx.fillRect(CONFIG.HALF_WIDTH - 1, 0, 2, CONFIG.OUT_HEIGHT);
-
-    drawTimerHalf(0, 0.0, true);
-    drawTimerHalf(CONFIG.HALF_WIDTH, 0.0, true);
-
-    const fL = Math.round(DOM.videoL.currentTime * state.fpsL);
-    const fR = Math.round(DOM.videoR.currentTime * state.fpsR);
-    DOM.fcL.textContent = `左: ${fL}f (${DOM.videoL.currentTime.toFixed(2)}s)`;
-    DOM.fcR.textContent = `右: ${fR}f (${DOM.videoR.currentTime.toFixed(2)}s)`;
-  }
-
-  DOM.videoL.addEventListener("seeked", () => {
-    if (state.phase === "setup") drawStatic();
-  });
-  DOM.videoR.addEventListener("seeked", () => {
-    if (state.phase === "setup") drawStatic();
-  });
-
-  /** コマ送り処理 */
-  function stepFrames(video, frames, fps) {
-    if (!video.duration) return;
-    const t = clamp(video.currentTime + frames / fps, 0, video.duration - 0.001);
-    video.currentTime = t;
-  }
-
-  document.querySelectorAll(".step-btn[data-frames]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const side = btn.dataset.side;
-      const frames = Number(btn.dataset.frames);
-      if (side === "L") stepFrames(DOM.videoL, frames, state.fpsL);
-      else stepFrames(DOM.videoR, frames, state.fpsR);
-    });
-  });
-
-  document.querySelectorAll("[data-offset]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const side = btn.dataset.side;
-      const d = Number(btn.dataset.offset);
-      if (side === "L") state.offsetL += d;
-      else state.offsetR += d;
-      if (state.phase === "setup") drawStatic();
-    });
-  });
-
-  DOM.resetOffsetBtn.addEventListener("click", () => {
-    state.offsetL = 0;
-    state.offsetR = 0;
-    if (state.phase === "setup") drawStatic();
-  });
-
-  // ===================================================================
-  // 8. 録画エンジン (Phase 3)
-  // ===================================================================
-
-  DOM.confirmStartBtn.addEventListener("click", startRecording);
-
-  // -------------------------------------------------------------------
-  // 8-1. MP4 マルチプレクサ
-  //   H.264 ビデオのみ / 非フラグメント / moov 先頭配置（faststart）。
-  //   再生時間・サンプル表を完全な形で書き込むため、写真アプリ・Googleフォト・
-  //   PC・SNS 等のどのプレイヤーでも「全長が正しく」認識される。
-  // -------------------------------------------------------------------
-  /*MP4MUXER_BEGIN*/
-  const Mp4Muxer = (function () {
-    const MEDIA_TIMESCALE = 90000;
-    const MOVIE_TIMESCALE = 1000;
-
-    const ascii = (s) => {
-      const a = new Uint8Array(s.length);
-      for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i) & 0xff;
-      return a;
-    };
-    const concat = (parts) => {
-      let n = 0;
-      for (const p of parts) n += p.length;
-      const out = new Uint8Array(n);
-      let k = 0;
-      for (const p of parts) { out.set(p, k); k += p.length; }
-      return out;
-    };
-    const zeros = (n) => new Uint8Array(n);
-    const u8 = (...v) => Uint8Array.from(v);
-    const u16 = (...v) => {
-      const b = new Uint8Array(v.length * 2);
-      const dv = new DataView(b.buffer);
-      for (let i = 0; i < v.length; i++) dv.setUint16(i * 2, v[i] & 0xffff);
-      return b;
-    };
-    const u32 = (...v) => u32arr(v);
-    const u32arr = (arr) => {
-      const b = new Uint8Array(arr.length * 4);
-      const dv = new DataView(b.buffer);
-      for (let i = 0; i < arr.length; i++) dv.setUint32(i * 4, arr[i] >>> 0);
-      return b;
-    };
-    const box = (type, ...parts) => {
-      const body = concat(parts);
-      const out = new Uint8Array(8 + body.length);
-      new DataView(out.buffer).setUint32(0, out.length);
-      out.set(ascii(type), 4);
-      out.set(body, 8);
-      return out;
-    };
-    const fullBox = (type, version, flags, ...parts) =>
-      box(type, u32(((version & 0xff) << 24) | (flags & 0xffffff)), ...parts);
-
-    const MATRIX = u32(0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000);
-
-    function buildMoov(p) {
-      const mvhd = fullBox("mvhd", 0, 0,
-        u32(p.now, p.now, MOVIE_TIMESCALE, p.durMovie),
-        u32(0x00010000), u16(0x0100), zeros(10), MATRIX, zeros(24), u32(2));
-
-      const tkhd = fullBox("tkhd", 0, 3,
-        u32(p.now, p.now, 1, 0, p.durMovie),
-        zeros(8), u16(0, 0, 0, 0), MATRIX,
-        u32(p.width * 65536, p.height * 65536));
-
-      const mdhd = fullBox("mdhd", 0, 0,
-        u32(p.now, p.now, MEDIA_TIMESCALE, p.durMedia), u16(0x55c4, 0));
-
-      const hdlr = fullBox("hdlr", 0, 0,
-        u32(0), ascii("vide"), zeros(12), ascii("VideoHandler"), u8(0));
-
-      const vmhd = fullBox("vmhd", 0, 1, u16(0, 0, 0, 0));
-      const dinf = box("dinf", fullBox("dref", 0, 0, u32(1), fullBox("url ", 0, 1)));
-
-      const avc1 = box("avc1",
-        zeros(6), u16(1), u16(0, 0), zeros(12),
-        u16(p.width, p.height), u32(0x00480000, 0x00480000), u32(0),
-        u16(1), zeros(32), u16(0x0018, 0xffff),
-        box("avcC", p.avcC));
-      const stsd = fullBox("stsd", 0, 0, u32(1), avc1);
-
-      const sttsFlat = [];
-      for (const r of p.runs) sttsFlat.push(r[0], r[1]);
-      const stts = fullBox("stts", 0, 0, u32(p.runs.length), u32arr(sttsFlat));
-      const stss = fullBox("stss", 0, 0, u32(p.keys.length), u32arr(p.keys));
-      const stsc = fullBox("stsc", 0, 0, u32(1, 1, p.sizes.length, 1));
-      const stsz = fullBox("stsz", 0, 0, u32(0, p.sizes.length), u32arr(p.sizes));
-      const stco = fullBox("stco", 0, 0, u32(1, p.offset));
-
-      const stbl = box("stbl", stsd, stts, stss, stsc, stsz, stco);
-      const minf = box("minf", vmhd, dinf, stbl);
-      const mdia = box("mdia", mdhd, hdlr, minf);
-      const trak = box("trak", tkhd, mdia);
-      return box("moov", mvhd, trak);
-    }
-
-    /**
-     * @param {{data:Uint8Array, ts:number, key:boolean}[]} samplesIn  ts はマイクロ秒
-     * @param {Uint8Array} avcC  AVCDecoderConfigurationRecord
-     * @param {number} endUs     動画全体の終了時刻（マイクロ秒）
-     * @returns {Blob}
-     */
-    function mux(samplesIn, avcC, endUs, width, height) {
-      // 先頭は必ずキーフレームから開始
-      let start = 0;
-      while (start < samplesIn.length && !samplesIn[start].key) start++;
-      const samples = samplesIn.slice(start);
-      if (!samples.length) throw new Error("no key frame");
-
-      const n = samples.length;
-      const ts0 = samples[0].ts;
-      const dts = new Array(n);
-      let prev = -1;
-      for (let i = 0; i < n; i++) {
-        let d = Math.round(((samples[i].ts - ts0) * MEDIA_TIMESCALE) / 1e6);
-        if (d <= prev) d = prev + 1;
-        dts[i] = d;
-        prev = d;
-      }
-      let lastDur = Math.round(((endUs - ts0) * MEDIA_TIMESCALE) / 1e6) - dts[n - 1];
-      if (lastDur < 1) lastDur = 1;
-
-      const runs = [];
-      const sizes = new Array(n);
-      const keys = [];
-      let payloadBytes = 0;
-      for (let i = 0; i < n; i++) {
-        const delta = i < n - 1 ? dts[i + 1] - dts[i] : lastDur;
-        const lastRun = runs[runs.length - 1];
-        if (lastRun && lastRun[1] === delta) lastRun[0]++;
-        else runs.push([1, delta]);
-        sizes[i] = samples[i].data.byteLength;
-        payloadBytes += sizes[i];
-        if (samples[i].key) keys.push(i + 1);
-      }
-      const durMedia = dts[n - 1] + lastDur;
-      const durMovie = Math.max(1, Math.round((durMedia * MOVIE_TIMESCALE) / MEDIA_TIMESCALE));
-      if (payloadBytes + 8 > 0xffffffff) throw new Error("too large");
-
-      const ftyp = box("ftyp", ascii("isom"), u32(512),
-        ascii("isom"), ascii("iso2"), ascii("avc1"), ascii("mp41"));
-      const params = {
-        now: Math.floor(Date.now() / 1000) + 2082844800,
-        width, height, avcC, runs, keys, sizes, durMedia, durMovie, offset: 0,
-      };
-      const moovLen = buildMoov(params).length;
-      params.offset = ftyp.length + moovLen + 8;
-      const moov = buildMoov(params);
-      const mdatHeader = concat([u32(payloadBytes + 8), ascii("mdat")]);
-
-      return new Blob([ftyp, moov, mdatHeader, ...samples.map((s) => s.data)], { type: "video/mp4" });
-    }
-
-    return { mux };
-  })();
-  /*MP4MUXER_END*/
-
-  // -------------------------------------------------------------------
-  // 8-2. 録画エンジン共通ユーティリティ
-  // -------------------------------------------------------------------
-  const withTimeout = (promise, ms, label) =>
-    new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(label + " timeout")), ms);
-      promise.then(
-        (v) => { clearTimeout(timer); resolve(v); },
-        (e) => { clearTimeout(timer); reject(e); }
-      );
-    });
-
-  const toU8 = (d) =>
-    d instanceof ArrayBuffer
-      ? new Uint8Array(d)
-      : new Uint8Array(d.buffer, d.byteOffset, d.byteLength);
-
-  const sameBytes = (a, b) => {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-    return true;
-  };
-
-  // -------------------------------------------------------------------
-  // 8-3. 主録画エンジン：WebCodecs (H.264) + 自前MP4出力
-  //   ・キャンバスの各フレームを実時間タイムスタンプ付きで直接エンコード
-  //   ・MediaRecorder のタイミング依存・ファイル終端の欠落問題を根本から回避
-  //   ・エンコーダ異常時は自動再起動し、録画を継続
-  // -------------------------------------------------------------------
-  const AVC_CODECS = ["avc1.640028", "avc1.4D0028", "avc1.420028", "avc1.42E01F"];
-
-  function encoderConfig(codec) {
-    return {
-      codec,
-      width: CONFIG.OUT_WIDTH,
-      height: CONFIG.OUT_HEIGHT,
-      bitrate: CONFIG.VIDEO_BITRATE,
-      framerate: CONFIG.RECORDING_FPS,
-      latencyMode: "realtime",
-      avc: { format: "avc" },
-    };
-  }
-
-  /** 録画開始前に実際に数フレームをエンコードし、動作を実証する */
-  async function probeCodec(codec) {
-    let enc = null;
-    try {
-      const cfg = encoderConfig(codec);
-      const sup = await VideoEncoder.isConfigSupported(cfg);
-      if (!sup || !sup.supported) return false;
-
-      let outputs = 0;
-      let hasDesc = false;
-      let failed = false;
-      enc = new VideoEncoder({
-        output: (chunk, meta) => {
-          outputs++;
-          if (meta && meta.decoderConfig && meta.decoderConfig.description) hasDesc = true;
-        },
-        error: () => { failed = true; },
-      });
-      enc.configure(cfg);
-      for (let i = 0; i < 3; i++) {
-        const f = new VideoFrame(DOM.canvas, { timestamp: i * 33333 });
-        try { enc.encode(f, { keyFrame: i === 0 }); } finally { f.close(); }
-      }
-      await withTimeout(enc.flush(), 5000, "probe flush");
-      return !failed && outputs >= 1 && hasDesc;
-    } catch (e) {
-      return false;
-    } finally {
-      try { if (enc && enc.state !== "closed") enc.close(); } catch (e) { /* noop */ }
-    }
-  }
-
-  async function createWebCodecsEngine() {
-    let chosen = null;
-    for (const c of AVC_CODECS) {
-      if (await probeCodec(c)) { chosen = c; break; }
-    }
-    if (!chosen) return null;
-
-    const order = [chosen, ...AVC_CODECS.filter((c) => c !== chosen)];
-    const FRAME_MIN_MS = 1000 / CONFIG.RECORDING_FPS - 2.5;
-    const FRAME_US = Math.round(1e6 / CONFIG.RECORDING_FPS);
-
-    const samples = [];
-    let totalBytes = 0;
-    let description = null;
-    let encoder = null;
-    let codecIdx = 0;
-    let restarts = 0;
-    let awaitKey = true;
-    let needKey = true;
-    let accepting = true;
-    let truncated = false;
-    let closed = false;
-    let t0 = null;
-    let pausedTotal = 0;
-    let suspendedAt = null;
-    let lastEncRel = -1e9;
-    let lastTsUs = -1;
-    let frameCount = 0;
-
-    const engine = { kind: "webcodecs", onFatal: null };
-
-    function giveUp() {
-      accepting = false;
-      truncated = true;
-      if (engine.onFatal) {
-        engine.onFatal("録画エンコーダーでエラーが発生しました。ここまでの内容を保存します。");
-      }
-    }
-
-    function onOutput(enc, chunk, meta) {
-      if (closed || enc !== encoder || !accepting) return;
-      const d = meta && meta.decoderConfig && meta.decoderConfig.description;
-      if (d) {
-        const u = toU8(d);
-        if (!description) {
-          description = u.slice();
-        } else if (!sameBytes(description, u)) {
-          // 再起動後の構成が互換でない場合は、ここまでを確定させる
-          giveUp();
-          return;
-        }
-      }
-      if (!description) return;
-      if (awaitKey) {
-        if (chunk.type !== "key") return;
-        awaitKey = false;
-      }
-      const buf = new Uint8Array(chunk.byteLength);
-      chunk.copyTo(buf);
-      samples.push({ data: buf, ts: chunk.timestamp, key: chunk.type === "key" });
-      totalBytes += buf.byteLength;
-    }
-
-    function openEncoder() {
-      const enc = new VideoEncoder({
-        output: (chunk, meta) => onOutput(enc, chunk, meta),
-        error: () => { if (enc === encoder) recover(); },
-      });
-      enc.configure(encoderConfig(order[codecIdx]));
-      encoder = enc;
-      awaitKey = true;
-      needKey = true;
-    }
-
-    function recover() {
-      if (closed || !accepting) return;
-      try { if (encoder && encoder.state !== "closed") encoder.close(); } catch (e) { /* noop */ }
-      encoder = null;
-      if (restarts >= 3) { giveUp(); return; }
-      restarts++;
-      if (samples.length === 0 && codecIdx + 1 < order.length) codecIdx++;
-      try { openEncoder(); } catch (e) { giveUp(); }
-    }
-
-    function relNow(nowMs) {
-      if (t0 === null) t0 = nowMs;
-      const ref = suspendedAt !== null ? suspendedAt : nowMs;
-      return ref - t0 - pausedTotal;
-    }
-
-    openEncoder();
-
-    engine.start = (nowMs) => { t0 = nowMs; };
-
-    engine.addFrame = (nowMs, force) => {
-      if (closed || !accepting || suspendedAt !== null || !encoder) return;
-      const rel = relNow(nowMs);
-      if (force) {
-        if (rel - lastEncRel < 5) return;
-      } else if (frameCount > 0 && rel - lastEncRel < FRAME_MIN_MS) {
-        return;
-      }
-      if (encoder.state !== "configured") { recover(); return; }
-      if (encoder.encodeQueueSize > CONFIG.MAX_ENCODE_QUEUE) return;
-
-      let tsUs = Math.round(rel * 1000);
-      if (tsUs <= lastTsUs) tsUs = lastTsUs + 1;
-      let frame = null;
-      try {
-        frame = new VideoFrame(DOM.canvas, { timestamp: tsUs });
-        encoder.encode(frame, {
-          keyFrame: needKey || frameCount % CONFIG.KEYFRAME_INTERVAL_FRAMES === 0,
-        });
-        needKey = false;
-        frameCount++;
-        lastEncRel = rel;
-        lastTsUs = tsUs;
-      } catch (e) {
-        recover();
-      } finally {
-        if (frame) frame.close();
-      }
-    };
-
-    engine.suspend = (nowMs) => {
-      if (suspendedAt === null) suspendedAt = nowMs;
-    };
-    engine.resume = (nowMs) => {
-      if (suspendedAt !== null) {
-        pausedTotal += nowMs - suspendedAt;
-        suspendedAt = null;
-      }
-    };
-    engine.bytes = () => totalBytes;
-
-    engine.finish = async (nowMs) => {
-      if (!closed) {
-        try { engine.addFrame(nowMs, true); } catch (e) { /* noop */ }
-        try {
-          if (encoder && encoder.state === "configured") {
-            await withTimeout(encoder.flush(), 10000, "flush");
-          }
-        } catch (e) {
-          truncated = true;
-        }
-      }
-      const endRel = relNow(nowMs);
-      closed = true;
-      try { if (encoder && encoder.state !== "closed") encoder.close(); } catch (e) { /* noop */ }
-      encoder = null;
-
-      if (!samples.length || !description) return null;
-      const lastUs = samples[samples.length - 1].ts;
-      const endUs = Math.max(Math.round(endRel * 1000), lastUs + FRAME_US);
-      const blob = Mp4Muxer.mux(samples, description, endUs, CONFIG.OUT_WIDTH, CONFIG.OUT_HEIGHT);
-      return { blob, mimeType: "video/mp4", truncated };
-    };
-
-    engine.abort = () => {
-      closed = true;
-      try { if (encoder && encoder.state !== "closed") encoder.close(); } catch (e) { /* noop */ }
-      encoder = null;
-      samples.length = 0;
-      totalBytes = 0;
-    };
-
-    return engine;
-  }
-
-  // -------------------------------------------------------------------
-  // 8-4. 予備録画エンジン：MediaRecorder（WebCodecs 非対応環境用）
-  // -------------------------------------------------------------------
-  function pickMimeType() {
-    const candidates = [
-      "video/webm;codecs=vp8",
-      "video/webm;codecs=vp9",
-      "video/webm",
-      "video/mp4;codecs=avc1.640028",
-      "video/mp4;codecs=avc1.4D0028",
-      "video/mp4;codecs=avc1.42E01E",
-      "video/mp4",
-    ];
-    for (const c of candidates) {
-      if (window.MediaRecorder && MediaRecorder.isTypeSupported(c)) return c;
-    }
-    return "";
-  }
-
-  function createMediaRecorderEngine() {
-    if (!HAS_MEDIARECORDER) throw new Error("MediaRecorder unsupported");
-
-    const stream = DOM.canvas.captureStream(CONFIG.RECORDING_FPS);
-    const mime = pickMimeType();
-    let rec = null;
-    try {
-      const opts = { videoBitsPerSecond: CONFIG.VIDEO_BITRATE };
-      if (mime) opts.mimeType = mime;
-      rec = new MediaRecorder(stream, opts);
-    } catch (e) {
-      rec = new MediaRecorder(stream);
-    }
-
-    const chunks = [];
-    let totalBytes = 0;
-    let discard = false;
-    let stopResolve = null;
-    const stopped = new Promise((resolve) => { stopResolve = resolve; });
-    const engine = { kind: "mediarecorder", onFatal: null };
-
-    rec.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) {
-        chunks.push(e.data);
-        totalBytes += e.data.size;
-      }
-    };
-    rec.onstop = () => stopResolve();
-    rec.onerror = () => {
-      if (engine.onFatal) engine.onFatal("録画中にエラーが発生しました。ここまでの内容を保存します。");
-    };
-
-    const releaseStream = () => {
-      try { stream.getTracks().forEach((t) => t.stop()); } catch (e) { /* noop */ }
-    };
-
-    engine.start = () => { rec.start(1000); };
-    engine.addFrame = () => { /* captureStream が自動でフレームを供給 */ };
-    engine.suspend = () => { try { if (rec.state === "recording") rec.pause(); } catch (e) { /* noop */ } };
-    engine.resume = () => { try { if (rec.state === "paused") rec.resume(); } catch (e) { /* noop */ } };
-    engine.bytes = () => totalBytes;
-
-    engine.finish = async () => {
-      if (rec.state !== "inactive") {
-        try { rec.requestData(); } catch (e) { /* noop */ }
-        try { rec.stop(); } catch (e) { stopResolve(); }
-      } else {
-        stopResolve();
-      }
-      try { await withTimeout(stopped, 8000, "stop"); } catch (e) { /* 収集済み分で確定 */ }
-      releaseStream();
-      if (discard || !chunks.length) return null;
-      const type = rec.mimeType || mime || "video/webm";
-      return { blob: new Blob(chunks, { type }), mimeType: type, truncated: false };
-    };
-
-    engine.abort = () => {
-      discard = true;
-      try { if (rec.state !== "inactive") rec.stop(); } catch (e) { /* noop */ }
-      releaseStream();
-      chunks.length = 0;
-      totalBytes = 0;
-    };
-
-    return engine;
-  }
-
-  async function createRecorderEngine() {
-    if (HAS_WEBCODECS) {
-      try {
-        const eng = await createWebCodecsEngine();
-        if (eng) return eng;
-      } catch (e) {
-        console.warn("WebCodecs engine unavailable, falling back to MediaRecorder.", e);
-      }
-    }
-    return createMediaRecorderEngine();
-  }
-
-  // -------------------------------------------------------------------
-  // 8-5. 画面スリープ防止・バックグラウンド対策
-  // -------------------------------------------------------------------
-  async function acquireWakeLock() {
-    try {
-      if (!("wakeLock" in navigator) || wakeLock) return;
-      const lock = await navigator.wakeLock.request("screen");
-      wakeLock = lock;
-      lock.addEventListener("release", () => {
-        if (wakeLock === lock) wakeLock = null;
-      });
-    } catch (e) { /* 非対応・拒否時は無視 */ }
-  }
-
-  function releaseWakeLock() {
-    const lock = wakeLock;
-    wakeLock = null;
-    if (lock) lock.release().catch(() => {});
-  }
-
-  /** 画面が非表示になる間は、録画の時間軸ごと完全に一時停止する */
-  function suspendRecording() {
-    if (!state.recording || suspended) return;
-    suspended = true;
-    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-    DOM.videoL.pause();
-    DOM.videoR.pause();
-    if (recorderEngine) recorderEngine.suspend(performance.now());
-  }
-
-  function resumeRecording() {
-    if (!state.recording || !suspended) return;
-    suspended = false;
-    acquireWakeLock();
-    lastTs = null;
-    if (recorderEngine) recorderEngine.resume(performance.now());
-    syncPlaybackState();
-    lastKick = performance.now();
-    rafId = requestAnimationFrame(recordLoop);
-    showToast("画面が切り替わったため録画を一時中断し、再開しました。");
-  }
-
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden) suspendRecording();
-    else resumeRecording();
-  });
-
-  DOM.videoL.addEventListener("ended", () => { if (state.recording) state.finishedL = true; });
-  DOM.videoR.addEventListener("ended", () => { if (state.recording) state.finishedR = true; });
-
-  // -------------------------------------------------------------------
-  // 8-6. 録画の開始 / 描画ループ
-  // -------------------------------------------------------------------
-  async function startRecording() {
-    if (state.recording || starting || finalizing) return;
-
-    if (!CAN_RECORD) {
-      showToast("このブラウザでは録画を開始できません。Chromeをお試しください。", true);
-      return;
-    }
-
-    starting = true;
-    DOM.confirmStartBtn.disabled = true;
-    showToast("録画の準備をしています…");
-
-    let engine = null;
-    try {
-      engine = await createRecorderEngine();
-    } catch (err) {
-      starting = false;
-      DOM.confirmStartBtn.disabled = false;
-      showToast("録画を開始できませんでした: " + (err && err.message ? err.message : err), true);
-      return;
-    }
-
-    state.phase = "record";
-    state.pauseL = false;
-    state.pauseR = false;
-    state.pauseAll = false;
-    state.finishedL = false;
-    state.finishedR = false;
-    state.totalElapsed = 0;
-    state.speed = 1.0;
-
-    document.querySelectorAll(".speed-btn").forEach((b) => {
-      b.classList.toggle("active", b.dataset.speed === "1.0");
-    });
-
-    engine.onFatal = (msg) => {
-      showToast(msg, true);
-      if (state.recording) finishRecording(false);
-    };
-
-    suspended = false;
-    recorderEngine = engine;
-    showPhase("record");
-
-    try {
-      engine.start(performance.now());
-    } catch (err) {
-      try { engine.abort(); } catch (e) { /* noop */ }
-      recorderEngine = null;
-      starting = false;
-      DOM.confirmStartBtn.disabled = false;
-      showPhase("setup");
-      drawStatic();
-      showToast("録画を開始できませんでした: " + (err && err.message ? err.message : err), true);
-      return;
-    }
-
-    DOM.toast.classList.remove("show");
-
-    DOM.videoL.playbackRate = 1.0;
-    DOM.videoR.playbackRate = 1.0;
-    DOM.videoL.play().catch(() => {});
-    DOM.videoR.play().catch(() => {});
-
-    state.recording = true;
-    starting = false;
-    lastTs = null;
-    lastKick = performance.now();
-    acquireWakeLock();
-    rafId = requestAnimationFrame(recordLoop);
-  }
-
-  function recordLoop(ts) {
-    if (!state.recording || suspended) return;
-
-    if (lastTs === null) lastTs = ts;
-    const dt = (ts - lastTs) / 1000;
-    lastTs = ts;
-
-    if (!state.pauseAll) {
-      state.totalElapsed += dt;
-    }
-
-    if (DOM.videoL.ended) state.finishedL = true;
-    if (DOM.videoR.ended) state.finishedR = true;
-
-    ctx.clearRect(0, 0, CONFIG.OUT_WIDTH, CONFIG.OUT_HEIGHT);
-    drawHalf(DOM.videoL, 0, state.offsetL);
-    drawHalf(DOM.videoR, CONFIG.HALF_WIDTH, state.offsetR);
-
-    // 中央分割線
-    ctx.fillStyle = "#FFF";
-    ctx.fillRect(CONFIG.HALF_WIDTH - 1, 0, 2, CONFIG.OUT_HEIGHT);
-
-    drawTimerHalf(0, state.totalElapsed, state.pauseL || state.finishedL);
-    drawTimerHalf(CONFIG.HALF_WIDTH, state.totalElapsed, state.pauseR || state.finishedR);
-
-    // 描画し終えたフレームを確実に録画へ渡す
-    if (recorderEngine) recorderEngine.addFrame(ts);
-
-    // 両動画が終了した場合は自動停止
-    if (state.finishedL && state.finishedR) {
-      finishRecording(false);
-      return;
-    }
-
-    // 容量上限（端末メモリ保護）
-    if (recorderEngine && recorderEngine.bytes() > CONFIG.MAX_RECORD_BYTES) {
-      showToast("録画データが上限に達したため、ここで保存します。", true);
-      finishRecording(false);
-      return;
-    }
-
-    // OSによる予期しない再生停止を検知して復帰（0.5秒ごと）
-    if (ts - lastKick >= 500) {
-      lastKick = ts;
-      syncPlaybackState();
-    }
-
-    rafId = requestAnimationFrame(recordLoop);
-  }
-
-  function syncPlaybackState() {
-    const wantPlayL = !state.pauseAll && !state.pauseL && !state.finishedL;
-    const wantPlayR = !state.pauseAll && !state.pauseR && !state.finishedR;
-
-    if (wantPlayL && DOM.videoL.paused) DOM.videoL.play().catch(() => {});
-    if (!wantPlayL && !DOM.videoL.paused) DOM.videoL.pause();
-
-    if (wantPlayR && DOM.videoR.paused) DOM.videoR.play().catch(() => {});
-    if (!wantPlayR && !DOM.videoR.paused) DOM.videoR.pause();
-  }
-
-  DOM.pauseLBtn.addEventListener("click", function () {
-    state.pauseL = !state.pauseL;
-    this.classList.toggle("active", state.pauseL);
-    this.textContent = state.pauseL ? "左を再開" : "左を一時停止 [HOLD]";
-    syncPlaybackState();
-  });
-
-  DOM.pauseRBtn.addEventListener("click", function () {
-    state.pauseR = !state.pauseR;
-    this.classList.toggle("active", state.pauseR);
-    this.textContent = state.pauseR ? "右を再開" : "右を一時停止 [HOLD]";
-    syncPlaybackState();
-  });
-
-  DOM.pauseAllBtn.addEventListener("click", function () {
-    state.pauseAll = !state.pauseAll;
-    this.classList.toggle("active", state.pauseAll);
-    this.textContent = state.pauseAll ? "▶ 全体を再開" : "⏸ 全体を一時停止";
-    syncPlaybackState();
-  });
-
-  document.querySelectorAll(".speed-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(".speed-btn").forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-      state.speed = Number(btn.dataset.speed);
-      DOM.videoL.playbackRate = state.speed;
-      DOM.videoR.playbackRate = state.speed;
-    });
-  });
-
-  DOM.saveEndBtn.addEventListener("click", () => {
-    finishRecording(false);
-  });
-
-  DOM.discardBtn.addEventListener("click", () => {
-    if (confirm("録画中の内容を破棄して開始位置の調整に戻ります。よろしいですか？")) {
-      finishRecording(true);
-    }
-  });
-
-  function finishRecording(discard) {
-    if (!state.recording || finalizing) return;
-    state.recording = false;
-    finalizing = true;
-    suspended = false;
-
-    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-    DOM.videoL.pause();
-    DOM.videoR.pause();
-    releaseWakeLock();
-
-    const engine = recorderEngine;
-    recorderEngine = null;
-    completeRecording(engine, !!discard);
-  }
-
-  /** エンコーダーを確実にフラッシュし、完全な動画ファイルを確定させる */
-  async function completeRecording(engine, discard) {
-    let result = null;
-    try {
-      if (!engine) {
-        result = null;
-      } else if (discard) {
-        engine.abort();
-      } else {
-        showToast("動画を書き出しています。しばらくお待ちください…");
-        result = await engine.finish(performance.now());
-      }
-    } catch (err) {
-      console.error(err);
-      result = null;
-    } finally {
-      finalizing = false;
-      DOM.confirmStartBtn.disabled = false;
-    }
-
-    if (discard) {
-      showPhase("setup");
-      drawStatic();
-      return;
-    }
-
-    if (!result || !result.blob || result.blob.size === 0) {
-      showToast("動画の書き出しに失敗しました。もう一度お試しください。", true);
-      showPhase("setup");
-      drawStatic();
-      return;
-    }
-
-    presentResult(result.blob, result.mimeType);
-    if (result.truncated) {
-      showToast("エンコーダーの不具合により、途中までの動画を保存しました。", true);
-    }
-  }
-
-  function presentResult(blob, mimeTypeIn) {
-    if (objectUrls.result) {
-      URL.revokeObjectURL(objectUrls.result);
-    }
-
-    const mimeType = mimeTypeIn || "video/webm";
-    const url = URL.createObjectURL(blob);
-    objectUrls.result = url;
-
-    DOM.resultVideo.src = url;
-    DOM.downloadLink.href = url;
-
-    const extension = mimeType.includes("mp4") ? "mp4" : "webm";
-    DOM.downloadLink.download = `syncedmovie_${Date.now()}.${extension}`;
-
-    DOM.shareBtn.onclick = async () => {
-      const shareFile = new File([blob], DOM.downloadLink.download, { type: mimeType });
-      if (navigator.canShare && navigator.canShare({ files: [shareFile] })) {
-        try {
-          await navigator.share({
-            files: [shareFile],
-            title: "登攀ムーブ比較動画",
-            text: "SyncClimbで作成したムーブ比較検証動画です。",
-          });
-        } catch (e) {
-          // ユーザーキャンセル時は何もしない
-        }
-      } else {
-        alert("この端末では直接共有ができません。「端末に保存する」をご利用ください。");
-      }
-    };
-
-    showPhase("result");
-  }
-
-  DOM.restartBtn.addEventListener("click", () => {
-    DOM.fileL.value = "";
-    DOM.fileR.value = "";
-    DOM.videoL.removeAttribute("src");
-    DOM.videoR.removeAttribute("src");
-
-    ["L", "R", "result"].forEach((key) => {
-      if (objectUrls[key]) {
-        URL.revokeObjectURL(objectUrls[key]);
-        objectUrls[key] = null;
-      }
-    });
-
-    state.offsetL = 0;
-    state.offsetR = 0;
-    DOM.confirmStartBtn.disabled = false;
-    DOM.toSetupBtn.disabled = true;
-    showPhase("select");
-  });
-
-  // ===================================================================
-  // 9. PC向けキーボードショートカット
-  // ===================================================================
-  window.addEventListener("keydown", (e) => {
-    if (e.target.tagName === "INPUT") return;
-
-    if (state.phase === "setup") {
-      switch (e.key) {
-        case "w": case "W": stepFrames(DOM.videoL, e.shiftKey ? 10 : 1, state.fpsL); break;
-        case "s": case "S": stepFrames(DOM.videoL, e.shiftKey ? -10 : -1, state.fpsL); break;
-        case "i": case "I": stepFrames(DOM.videoR, e.shiftKey ? 10 : 1, state.fpsR); break;
-        case "k": case "K": stepFrames(DOM.videoR, e.shiftKey ? -10 : -1, state.fpsR); break;
-        case "z": case "Z": state.offsetL -= CONFIG.DEFAULT_SHIFT_STEP; drawStatic(); break;
-        case "c": case "C": state.offsetL += CONFIG.DEFAULT_SHIFT_STEP; drawStatic(); break;
-        case ",": case "<": state.offsetR -= CONFIG.DEFAULT_SHIFT_STEP; drawStatic(); break;
-        case ".": case ">": state.offsetR += CONFIG.DEFAULT_SHIFT_STEP; drawStatic(); break;
-        case "r": case "R": state.offsetL = 0; state.offsetR = 0; drawStatic(); break;
-        case "Enter": DOM.confirmStartBtn.click(); break;
-      }
-    } else if (state.phase === "record") {
-      switch (e.key) {
-        case " ": e.preventDefault(); DOM.pauseAllBtn.click(); break;
-        case "a": case "A": DOM.pauseLBtn.click(); break;
-        case "l": case "L": DOM.pauseRBtn.click(); break;
-        case "q": case "Q": DOM.saveEndBtn.click(); break;
-        case "Escape": DOM.discardBtn.click(); break;
-      }
-    }
-  });
-
-})();
-</script>
+<!-- デコード用隠しビデオ要素 -->
+<video id="videoL" muted playsinline preload="auto" hidden></video>
+<video id="videoR" muted playsinline preload="auto" hidden></video>
+
+<script src="./app.js" defer></script>
 </body>
 </html>

@@ -6,9 +6,9 @@
   "scope": "./",
   "id": "./index.html",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#1B1F23",
-  "theme_color": "#1B1F23",
+  "orientation": "any",
+  "background_color": "#fbfcf8",
+  "theme_color": "#697b43",
   "lang": "ja",
   "icons": [
     {
